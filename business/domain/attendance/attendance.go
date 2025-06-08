@@ -12,6 +12,8 @@ type DomainItf interface {
 	CreateAttendance(ctx context.Context, data entity.CreateAttendance) error
 	UpdateAttendance(ctx context.Context, data entity.UpdateAttendance) error
 
+	GetAttendance(ctx context.Context, filter entity.GetAttendance) ([]entity.Attendance, error)
+
 	CreateOvertime(ctx context.Context, data entity.CreateOvertimeData) error
 	GetOvertime(ctx context.Context, filter entity.GetOvertimeFilter) ([]entity.Overtime, error)
 }

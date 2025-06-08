@@ -2,11 +2,13 @@ package attendance
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/zuhrulumam/go-hris/business/entity"
 	"github.com/zuhrulumam/go-hris/pkg"
+	"gorm.io/gorm"
 
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
 )
@@ -262,4 +264,21 @@ func (p *attendance) GetOvertime(ctx context.Context, filter entity.GetOvertimeF
 	}
 
 	return result, nil
+}
+
+func (r *attendance) GetAttendance(ctx context.Context, filter entity.GetAttendance) ([]entity.Attendance, error) {
+	var att []entity.Attendance
+
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND DATE(check_in_at) = ?", filter.UserID, filter.Date.Format("2006-01-02")).
+		Find(&att).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, x.NewWithCode(http.StatusNotFound, "attendance not found")
+		}
+		return nil, x.WrapWithCode(err, http.StatusInternalServerError, "failed to get attendance")
+	}
+
+	return att, nil
 }

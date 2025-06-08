@@ -9,7 +9,10 @@ import (
 )
 
 type UsecaseItf interface {
-	Unpark(ctx context.Context, data entity.UnPark) error
+	CheckIn(ctx context.Context, data entity.CheckIn) error
+	CheckOut(ctx context.Context, data entity.CheckOut) error
+	CreateOvertime(ctx context.Context, data entity.CreateOvertimeData) error
+	GetOvertime(ctx context.Context, filter entity.GetOvertimeFilter) ([]entity.Overtime, error)
 }
 
 type Option struct {

@@ -34,7 +34,10 @@ type CreateOvertimeData struct {
 
 type GetOvertimeFilter struct {
 	UserID             uint
-	AttendancePeriodID uint
+	AttendancePeriodID uint       // optional
+	StartDate          *time.Time // optional
+	EndDate            *time.Time // optional
+	Date               time.Time  // optional, for single day query
 }
 
 type Overtime struct {
@@ -55,4 +58,9 @@ type CheckIn struct {
 type CheckOut struct {
 	UserID uint
 	Date   time.Time // Date of check-out
+}
+
+type GetAttendance struct {
+	UserID uint
+	Date   time.Time
 }
