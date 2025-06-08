@@ -9,11 +9,11 @@ import (
 
 //go:generate mockgen -source=business/domain/attendance/attendance.go -destination=mocks/mock_attendance.go -package=mocks
 type DomainItf interface {
-	GetAvailableAttendanceSpot(ctx context.Context, data entity.GetAvailableAttendanceSpot) ([]entity.AttendanceSpot, error)
-	InsertVehicle(ctx context.Context, data entity.InsertVehicle) error
-	UpdateAttendanceSpot(ctx context.Context, data entity.UpdateAttendanceSpot) error
-	UpdateVehicle(ctx context.Context, data entity.UpdateVehicle) error
-	GetVehicle(ctx context.Context, data entity.SearchVehicle) (entity.Vehicle, error)
+	CreateAttendance(ctx context.Context, data entity.CreateAttendance) error
+	UpdateAttendance(ctx context.Context, data entity.UpdateAttendance) error
+
+	CreateOvertime(ctx context.Context, data entity.CreateOvertimeData) error
+	GetOvertime(ctx context.Context, filter entity.GetOvertimeFilter) ([]entity.Overtime, error)
 }
 
 type attendance struct {

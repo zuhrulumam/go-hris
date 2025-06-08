@@ -9,10 +9,7 @@ import (
 )
 
 type UsecaseItf interface {
-	Park(ctx context.Context, data entity.Park) error
 	Unpark(ctx context.Context, data entity.UnPark) error
-	AvailableSpot(ctx context.Context, data entity.GetAvailablePark) ([]entity.AttendanceSpot, error)
-	SearchVehicle(ctx context.Context, data entity.SearchVehicle) (entity.Vehicle, error)
 }
 
 type Option struct {

@@ -21,7 +21,14 @@ var cleanerCommand = &cobra.Command{
 func clean(db *gorm.DB) {
 
 	// migrate db
-	if err := db.Migrator().DropTable(&AttendanceSpot{}, &Vehicle{}); err != nil {
+	if err := db.Migrator().DropTable(
+		&User{},
+		&AttendancePeriod{},
+		&Attendance{},
+		&Overtime{},
+		&Reimbursement{},
+		&Payslip{},
+	); err != nil {
 		log.Fatalf("failed to migrate tables: %v", err)
 	}
 }
