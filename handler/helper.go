@@ -1,22 +1,20 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 	"github.com/zuhrulumam/go-hris/pkg/errors"
 	"github.com/zuhrulumam/go-hris/pkg/logger"
 )
 
-func (e *rest) compileError(c *fiber.Ctx, err error) error {
-
+func (e *rest) compileError(c *gin.Context, err error) {
 	var (
 		httpStatus int
 		he         string
 		code       = errors.ErrCode(err)
-		ctx        = c.Locals("ctx").(context.Context)
 	)
+
 	switch code {
 	case 400:
 		httpStatus = http.StatusBadRequest
@@ -29,9 +27,9 @@ func (e *rest) compileError(c *fiber.Ctx, err error) error {
 		he = errors.EM.Message("EN", "internal")
 	}
 
-	logger.LogWithCtx(ctx, e.log, err.Error())
+	logger.LogWithCtx(c, e.log, err.Error())
 
-	return c.Status(httpStatus).JSON(ErrorResponse{
+	c.JSON(httpStatus, ErrorResponse{
 		HumanError: he,
 		DebugError: err.Error(),
 		Success:    false,

@@ -10,6 +10,7 @@ type Attendance struct {
 	CheckedInAt        *time.Time
 	CheckedOutAt       *time.Time
 	CreatedAt          time.Time
+	UpadatedAt         *time.Time
 }
 
 type CreateAttendance struct {
@@ -61,6 +62,32 @@ type CheckOut struct {
 }
 
 type GetAttendance struct {
-	UserID uint
-	Date   time.Time
+	UserID             uint
+	AttendancePeriodID uint
+	Date               time.Time
+}
+
+type GetAttendancePeriodFilter struct {
+	ID        string
+	Status    string
+	UserID    string
+	StartDate *time.Time
+	EndDate   *time.Time
+	UseLock   bool
+}
+
+type AttendancePeriod struct {
+	ID        uint      `gorm:"primaryKey"`
+	StartDate time.Time `gorm:"index"` // Optional index
+	EndDate   time.Time `gorm:"index"` // Optional index
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type UpdateAttendancePeriod struct {
+	ID        uint
+	Status    *string
+	StartDate *time.Time
+	EndDate   *time.Time
+	ClosedAt  *time.Time
 }

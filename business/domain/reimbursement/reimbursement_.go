@@ -39,15 +39,34 @@ func (r *reimbursement) SubmitReimbursement(ctx context.Context, data entity.Sub
 }
 
 func (r *reimbursement) GetReimbursements(ctx context.Context, filter entity.GetReimbursementFilter) ([]entity.Reimbursement, error) {
-	db := pkg.GetTransactionFromCtx(ctx, r.db)
+	var (
+		result []entity.Reimbursement
+		db     = pkg.GetTransactionFromCtx(ctx, r.db).WithContext(ctx).Model(&entity.Reimbursement{})
+	)
 
-	var result []entity.Reimbursement
+	// Dynamic filters
+	if filter.UserID > 0 {
+		db = db.Where("user_id = ?", filter.UserID)
+	}
 
-	err := db.WithContext(ctx).
-		Where("user_id = ? AND attendance_period_id = ?", filter.UserID, filter.AttendancePeriodID).
-		Order("created_at ASC").
-		Find(&result).Error
+	if filter.AttendancePeriodID > 0 {
+		db = db.Where("attendance_period_id = ?", filter.AttendancePeriodID)
+	}
 
+	if filter.Status != "" {
+		db = db.Where("status = ?", filter.Status)
+	}
+
+	if !filter.StartDate.IsZero() {
+		db = db.Where("created_at >= ?", filter.StartDate)
+	}
+
+	if !filter.EndDate.IsZero() {
+		db = db.Where("created_at <= ?", filter.EndDate)
+	}
+
+	// Query execution
+	err := db.Order("created_at ASC").Find(&result).Error
 	if err != nil {
 		return nil, x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch reimbursements")
 	}

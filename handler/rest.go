@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/swagger"
+	"github.com/gin-gonic/gin"
 	"github.com/zuhrulumam/go-hris/business/usecase"
 	_ "github.com/zuhrulumam/go-hris/docs" // replace with your module
+	"github.com/zuhrulumam/go-hris/pkg/middlewares"
 	"go.uber.org/zap"
 )
 
@@ -13,13 +13,13 @@ type Rest interface {
 
 type Option struct {
 	Uc  *usecase.Usecase
-	App *fiber.App
+	App *gin.Engine
 	Log *zap.Logger
 }
 
 type rest struct {
 	uc  *usecase.Usecase
-	app *fiber.App
+	app *gin.Engine
 	log *zap.Logger
 }
 
@@ -37,15 +37,14 @@ func Init(opt Option) Rest {
 
 func (r rest) Serve() {
 	// swagger
-	r.app.Get("/swagger/*", swagger.HandlerDefault)
+	// r.app.GET("/swagger/*", swagger.HandlerDefault)
 
-	// search vehicle
-	r.app.Get("/vehicle/search", r.SearchVehicle)
+	api := r.app.Group("/api")
+	api.Use(middlewares.JWTMiddleware())
 
-	// available spots
-	r.app.Get("/spot/available", r.AvailableSpot)
+	api.POST("/attendace/checkin", r.CheckIn)
 
-	r.app.Post("/vehicle/park", r.Park)
+	api.POST("/attendace/checkout", r.CheckOut)
 
-	r.app.Post("/vehicle/unpark", r.UnPark)
+	api.POST("/attendace/overtime", r.CreateOvertime)
 }

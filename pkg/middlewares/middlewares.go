@@ -4,51 +4,52 @@ import (
 	"context"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/zuhrulumam/go-hris/pkg/ctxkeys"
 	"go.uber.org/zap"
 )
 
-func RequestContextMiddleware(logger *zap.Logger) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+func RequestContextMiddleware(logger *zap.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		start := time.Now()
 
 		// Generate correlation ID if not present
-		correlationID := c.Get("X-Correlation-ID", uuid.New().String())
+		correlationID := c.GetHeader("X-Correlation-ID")
+		if correlationID == "" {
+			correlationID = uuid.New().String()
+		}
 
 		// Create context with values
-		ctx := context.WithValue(c.Context(), ctxkeys.CtxKeyCorrelationID, correlationID)
+		ctx := context.WithValue(c.Request.Context(), ctxkeys.CtxKeyCorrelationID, correlationID)
 		ctx = context.WithValue(ctx, ctxkeys.CtxKeyApp, "attendance-service")
 		ctx = context.WithValue(ctx, ctxkeys.CtxKeyRuntime, "go")
 		ctx = context.WithValue(ctx, ctxkeys.CtxKeyEnv, "production") // or from env
 		ctx = context.WithValue(ctx, ctxkeys.CtxKeyAppVersion, "v1.0.0")
-		ctx = context.WithValue(ctx, ctxkeys.CtxKeyPath, c.Path())
-		ctx = context.WithValue(ctx, ctxkeys.CtxKeyMethod, c.Method())
-		ctx = context.WithValue(ctx, ctxkeys.CtxKeyIP, c.IP())
-		ctx = context.WithValue(ctx, ctxkeys.CtxKeyPort, c.Port())
-		ctx = context.WithValue(ctx, ctxkeys.CtxKeySrcIP, c.Context().RemoteAddr().String())
-		ctx = context.WithValue(ctx, ctxkeys.CtxKeyHeader, c.GetReqHeaders())
+		ctx = context.WithValue(ctx, ctxkeys.CtxKeyPath, c.FullPath())
+		ctx = context.WithValue(ctx, ctxkeys.CtxKeyMethod, c.Request.Method)
+		ctx = context.WithValue(ctx, ctxkeys.CtxKeyIP, c.ClientIP())
+		ctx = context.WithValue(ctx, ctxkeys.CtxKeyPort, c.Request.URL.Port())
+		ctx = context.WithValue(ctx, ctxkeys.CtxKeySrcIP, c.Request.RemoteAddr)
+		ctx = context.WithValue(ctx, ctxkeys.CtxKeyHeader, c.Request.Header)
 
-		// Store context
-		c.Locals("ctx", ctx)
+		// Attach context back to request
+		c.Request = c.Request.WithContext(ctx)
 
-		// Continue
-		err := c.Next()
+		// Continue to next middleware/handler
+		c.Next()
 
-		// End time
+		// Logging after response
 		duration := time.Since(start)
+		statusCode := c.Writer.Status()
 
-		// Response status and logging
 		logger.Info("HTTP Request",
-			zap.String("path", c.Path()),
-			zap.String("method", c.Method()),
+			zap.String("path", c.FullPath()),
+			zap.String("method", c.Request.Method),
 			zap.String("correlation_id", correlationID),
-			zap.Int("status", c.Response().StatusCode()),
+			zap.Int("status", statusCode),
 			zap.String("duration", duration.String()),
-			zap.Any("header", c.GetReqHeaders()),
+			zap.Any("header", c.Request.Header),
 		)
-
-		return err
 	}
 }

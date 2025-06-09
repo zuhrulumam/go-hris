@@ -16,6 +16,10 @@ type DomainItf interface {
 
 	CreateOvertime(ctx context.Context, data entity.CreateOvertimeData) error
 	GetOvertime(ctx context.Context, filter entity.GetOvertimeFilter) ([]entity.Overtime, error)
+
+	CreateAttendancePeriod(ctx context.Context, data entity.AttendancePeriod) error
+	UpdateAttendancePeriod(ctx context.Context, data entity.UpdateAttendancePeriod) error
+	GetAttendancePeriods(ctx context.Context, filter entity.GetAttendancePeriodFilter) ([]entity.AttendancePeriod, error)
 }
 
 type attendance struct {

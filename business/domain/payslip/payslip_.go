@@ -136,3 +136,29 @@ func (p *payslip) GetPayrollSummary(ctx context.Context, req entity.GetPayrollSu
 		GrandTotal: grandTotal,
 	}, nil
 }
+
+func (p *payslip) IsPayrollExists(ctx context.Context, periodID uint) (bool, error) {
+	var count int64
+	err := p.db.WithContext(ctx).
+		Model(&entity.Payslip{}).
+		Where("attendance_period_id = ?", periodID).
+		Count(&count).Error
+	if err != nil {
+		return false, x.WrapWithCode(err, http.StatusInternalServerError, "failed to check payroll existence")
+	}
+	return count > 0, nil
+}
+
+func (p *payslip) CreatePayslip(ctx context.Context, payslips []entity.Payslip) error {
+	db := pkg.GetTransactionFromCtx(ctx, p.db)
+
+	if len(payslips) == 0 {
+		return x.NewWithCode(http.StatusBadRequest, "no payslip data provided")
+	}
+
+	if err := db.WithContext(ctx).Create(&payslips).Error; err != nil {
+		return x.WrapWithCode(err, http.StatusInternalServerError, "failed to create payslips")
+	}
+
+	return nil
+}

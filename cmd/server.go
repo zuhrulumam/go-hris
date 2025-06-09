@@ -3,7 +3,7 @@ package cmd
 import (
 	"log"
 
-	fiber "github.com/gofiber/fiber/v2"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"github.com/zuhrulumam/go-hris/business/domain"
 	"github.com/zuhrulumam/go-hris/business/usecase"
@@ -33,7 +33,7 @@ func run() {
 
 	lg = logger.NewZapLogger()
 
-	app := fiber.New()
+	app := gin.Default()
 	app.Use(middlewares.RequestContextMiddleware(lg))
 
 	// init sql
@@ -59,7 +59,7 @@ func run() {
 		Log: lg,
 	})
 
-	log.Println(app.Listen(":8080"))
+	log.Println(app.Run(":8080"))
 }
 
 // TODO: Gracefull shutdown

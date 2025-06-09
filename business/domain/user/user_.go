@@ -72,3 +72,28 @@ func (u *user) Login(ctx context.Context, req entity.LoginRequest) (*entity.User
 
 	return &user, nil
 }
+
+func (r *user) GetUsers(ctx context.Context, filter entity.GetUserFilter) ([]entity.User, error) {
+	db := pkg.GetTransactionFromCtx(ctx, r.db)
+
+	var users []entity.User
+	query := db.WithContext(ctx).Model(&entity.User{})
+
+	if filter.ID > 0 {
+		query = query.Where("id = ?", filter.ID)
+	}
+
+	if filter.Role != "" {
+		query = query.Where("role = ?", filter.Role)
+	}
+
+	if filter.Email != "" {
+		query = query.Where("email = ?", filter.Email)
+	}
+
+	if err := query.Find(&users).Error; err != nil {
+		return nil, x.WrapWithCode(err, http.StatusInternalServerError, "failed to get users")
+	}
+
+	return users, nil
+}

@@ -21,4 +21,7 @@ type SubmitReimbursementData struct {
 type GetReimbursementFilter struct {
 	UserID             uint
 	AttendancePeriodID uint
+	Status             string
+	StartDate          time.Time
+	EndDate            time.Time
 }

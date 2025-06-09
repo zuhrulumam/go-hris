@@ -11,6 +11,8 @@ import (
 type DomainItf interface {
 	Register(ctx context.Context, req entity.RegisterRequest) error
 	Login(ctx context.Context, req entity.LoginRequest) (*entity.User, error)
+
+	GetUsers(ctx context.Context, filter entity.GetUserFilter) ([]entity.User, error)
 }
 
 type user struct {

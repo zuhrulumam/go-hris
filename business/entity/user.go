@@ -32,3 +32,9 @@ type LoginRequest struct {
 	Username string
 	Password string
 }
+
+type GetUserFilter struct {
+	ID    uint
+	Role  string
+	Email string
+}

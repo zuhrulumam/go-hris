@@ -12,6 +12,9 @@ type DomainItf interface {
 	CreatePayroll(ctx context.Context, data entity.CreatePayrollData) error
 	GetPayslip(ctx context.Context, req entity.GetPayslipRequest) (*entity.Payslip, error)
 	GetPayrollSummary(ctx context.Context, req entity.GetPayrollSummaryRequest) (*entity.GetPayrollSummaryResponse, error)
+	IsPayrollExists(ctx context.Context, periodID uint) (bool, error)
+
+	CreatePayslip(ctx context.Context, payslips []entity.Payslip) error
 }
 
 type payslip struct {

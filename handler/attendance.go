@@ -1,12 +1,11 @@
 package handler
 
 import (
-	"context"
-	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
 	"github.com/zuhrulumam/go-hris/business/entity"
 
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
@@ -16,144 +15,140 @@ var (
 	validate = validator.New()
 )
 
-// SearchVehicle godoc
-// @Summary      Search a parked vehicle
-// @Description  Returns information about a vehicle parked in the lot
+// CheckIn godoc
+// @Summary      Employee check-in
+// @Description  Records employee check-in attendance
 // @Tags         Attendance
 // @Accept       json
 // @Produce      json
-// @Param        vehicle_number query string true "Vehicle Number"
-// @Success      200 {object} handler.SearchVehicleResponse
+// @Param        body body handler.CheckInRequest true "Check-In Info"
+// @Success      200 {object} handler.CheckInResponse
 // @Failure      400 {object} handler.ErrorResponse
-// @Router       /vehicle/search [get]
-func (e *rest) SearchVehicle(c *fiber.Ctx) error {
+// @Router       /api/attendance/checkin [post]
+func (e *rest) CheckIn(c *gin.Context) {
+	var input CheckInRequest
+	ctx := c.Request.Context()
 
-	vehicleNumber := c.Query("vehicle_number")
-
-	veh, err := e.uc.Attendance.SearchVehicle(c.Context(), entity.SearchVehicle{
-		VehicleNumber: vehicleNumber,
-	})
-	if err != nil {
-		return e.compileError(c, err)
-	}
-
-	return c.Status(fiber.StatusOK).JSON(SearchVehicleResponse{
-		Success: true,
-		Message: "Done Search vehicle !",
-		Vehicle: &veh,
-	})
-}
-
-// AvailableSpot godoc
-// @Summary      Get available attendance spots
-// @Description  Returns a list of available spots for a specific vehicle type
-// @Tags         Attendance
-// @Accept       json
-// @Produce      json
-// @Param        vehicle_type query string true "Vehicle Type (M, B, A)"
-// @Success      200 {object} handler.AvailableSpotResponse
-// @Failure      400 {object} handler.ErrorResponse
-// @Router       /spot/available [get]
-func (e *rest) AvailableSpot(c *fiber.Ctx) error {
-
-	var (
-		res         []AttendanceSpotBrief
-		vehicleType = c.Query("vehicle_type")
-	)
-
-	spots, err := e.uc.Attendance.AvailableSpot(c.Context(), entity.GetAvailablePark{
-		VehicleType: entity.VehicleType(vehicleType),
-	})
-	if err != nil {
-		return e.compileError(c, err)
-	}
-
-	for _, s := range spots {
-		res = append(res, AttendanceSpotBrief{
-			SpotID: fmt.Sprintf("%d-%d-%d", s.Floor, s.Row, s.Col),
-			Floor:  s.Floor,
-			Row:    s.Row,
-			Column: s.Col,
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(AvailableSpotResponse{
-		Success:        true,
-		Message:        "Done Search vehicle !",
-		AvailableSpots: res,
-		VehicleType:    vehicleType,
-	})
-}
-
-// Park godoc
-// @Summary      Park a vehicle
-// @Description  Parks a vehicle into an available spot
-// @Tags         Attendance
-// @Accept       json
-// @Produce      json
-// @Param        body body handler.ParkRequest true "Vehicle Info"
-// @Success      200 {object} handler.ParkResponse
-// @Failure      400 {object} handler.ErrorResponse
-// @Router       /vehicle/park [post]
-func (e *rest) Park(c *fiber.Ctx) error {
-
-	var (
-		input ParkRequest
-		ctx   = c.Locals("ctx").(context.Context)
-	)
-	if err := c.BodyParser(&input); err != nil {
-		return e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
+	if err := c.ShouldBindJSON(&input); err != nil {
+		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
+		return
 	}
 
 	if err := validate.Struct(input); err != nil {
-		return e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "failed validation"))
+		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "failed validation"))
+		return
 	}
 
-	err := e.uc.Attendance.Park(ctx, entity.Park{
-		VehicleType:   entity.VehicleType(input.VehicleType),
-		VehicleNumber: input.VehicleNumber,
+	userID, ok := c.Get("userID")
+	if !ok {
+		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "missing user context"))
+		return
+	}
+
+	err := e.uc.Attendance.CheckIn(ctx, entity.CheckIn{
+		UserID: userID.(uint),
+		Date:   time.Now(),
 	})
 	if err != nil {
-		return e.compileError(c, err)
+		e.compileError(c, err)
+		return
 	}
 
-	return c.Status(fiber.StatusOK).JSON(ParkResponse{
+	c.JSON(http.StatusOK, CheckInResponse{
 		Success: true,
-		Message: "Done attendance vehicle !",
+		Message: "Check-in successful",
 	})
 }
 
-// UnPark godoc
-// @Summary      Unpark a vehicle
-// @Description  Removes a vehicle from the attendance lot
+// CheckOut godoc
+// @Summary      Employee check-out
+// @Description  Records employee check-out attendance
 // @Tags         Attendance
 // @Accept       json
 // @Produce      json
-// @Param        body body handler.UnparkRequest true "Unpark Info"
-// @Success      200 {object} handler.UnparkResponse
+// @Param        body body handler.CheckOutRequest true "Check-Out Info"
+// @Success      200 {object} handler.CheckOutResponse
 // @Failure      400 {object} handler.ErrorResponse
-// @Router       /vehicle/unpark [post]
-func (e *rest) UnPark(c *fiber.Ctx) error {
+// @Router       /api/attendance/checkout [post]
+func (e *rest) CheckOut(c *gin.Context) {
+	var input CheckOutRequest
+	ctx := c.Request.Context()
 
-	var input UnparkRequest
-	if err := c.BodyParser(&input); err != nil {
-		return e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
+	if err := c.ShouldBindJSON(&input); err != nil {
+		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
+		return
 	}
 
 	if err := validate.Struct(input); err != nil {
-		return e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "failed validation"))
+		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "failed validation"))
+		return
 	}
 
-	err := e.uc.Attendance.Unpark(c.Context(), entity.UnPark{
-		SpotID:        input.SpotID,
-		VehicleNumber: input.VehicleNumber,
+	userID, ok := c.Get("userID")
+	if !ok {
+		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "missing user context"))
+		return
+	}
+
+	err := e.uc.Attendance.CheckOut(ctx, entity.CheckOut{
+		UserID: userID.(uint),
+		Date:   time.Now(),
 	})
 	if err != nil {
-		return e.compileError(c, err)
+		e.compileError(c, err)
+		return
 	}
 
-	return c.Status(fiber.StatusOK).JSON(UnparkResponse{
+	c.JSON(http.StatusOK, CheckOutResponse{
 		Success: true,
-		Message: "Done unattendance vehicle !",
+		Message: "Check-out successful",
+	})
+}
+
+// CreateOvertime godoc
+// @Summary      Submit overtime request
+// @Description  Allows an employee to submit an overtime record
+// @Tags         Overtime
+// @Accept       json
+// @Produce      json
+// @Param        body body handler.OvertimeRequest true "Overtime Info"
+// @Success      200 {object} handler.GenericResponse
+// @Failure      400 {object} handler.ErrorResponse
+// @Router       /api/overtime [post]
+func (e *rest) CreateOvertime(c *gin.Context) {
+	var (
+		input OvertimeRequest
+		ctx   = c.Request.Context()
+	)
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
+		return
+	}
+
+	if err := validate.Struct(input); err != nil {
+		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "failed validation"))
+		return
+	}
+
+	userID, ok := c.Get("userID")
+	if !ok {
+		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "missing user context"))
+		return
+	}
+
+	err := e.uc.Attendance.CreateOvertime(ctx, entity.CreateOvertimeData{
+		UserID:      userID.(uint),
+		Hours:       input.Hours,
+		Description: input.Description,
+	})
+	if err != nil {
+		e.compileError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, GenericResponse{
+		Success: true,
+		Message: "Overtime submitted successfully!",
 	})
 }
