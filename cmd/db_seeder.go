@@ -51,7 +51,8 @@ type Attendance struct {
 	CheckedOutAt       time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-	Date               time.Time `gorm:"index"` // For filtering by date
+	Date               time.Time `gorm:"index"`     // For filtering by date
+	Version            uint      `gorm:"default:1"` // 👈 For optimistic locking
 }
 
 type Overtime struct {

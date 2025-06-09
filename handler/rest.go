@@ -53,4 +53,6 @@ func (r rest) Serve() {
 
 	api.POST("/payroll/create", r.CreatePayroll)
 	api.GET("/payslip", r.GetPayslip)
+
+	api.POST("/attendance/period", r.CreateAttendancePeriod)
 }

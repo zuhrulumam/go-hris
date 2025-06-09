@@ -13,6 +13,7 @@ type UsecaseItf interface {
 	CheckOut(ctx context.Context, data entity.CheckOut) error
 	CreateOvertime(ctx context.Context, data entity.CreateOvertimeData) error
 	GetOvertime(ctx context.Context, filter entity.GetOvertimeFilter) ([]entity.Overtime, error)
+	CreateAttendancePeriod(ctx context.Context, req entity.CreateAttendancePeriodRequest) error
 }
 
 type Option struct {

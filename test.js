@@ -1,96 +1,85 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
 
-// Store vehicle numbers per VU
-let parkedVehicles = [];
-
-const vehicleTypes = ["A", "M", "B"];
-
-export let options = {
-  stages: [
-    { duration: "2m", target: 50 }, // ramp up to 50 users
-    { duration: "5m", target: 50 }, // stay at 50 users
-    { duration: "2m", target: 0 }, // ramp down
-  ],
+export const options = {
+  vus: 10,
+  duration: "30s",
 };
 
-function getRandomVehicleNumber() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const nums = Math.floor(Math.random() * 9000 + 1000); // random 4-digit
-  const letters =
-    chars.charAt(Math.floor(Math.random() * chars.length)) +
-    chars.charAt(Math.floor(Math.random() * chars.length));
-  return `${letters}-${nums}`;
-}
-
-function parkVehicle() {
-  const vehicleType =
-    vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)];
-  const vehicleNumber = getRandomVehicleNumber();
-
-  const payload = JSON.stringify({
-    vehicle_type: vehicleType,
-    vehicle_number: vehicleNumber,
-  });
-
-  const headers = { "Content-Type": "application/json" };
-  // const res = http.post("http://parking.localhost/vehicle/park", payload, {
-  //   headers,
-  // });
-  const res = http.post("http://localhost:8080/vehicle/park", payload, {
-    headers,
-  });
-
-  const passed = check(res, {
-    "park status is 200": (r) => r.status === 200,
-  });
-
-  if (!passed) {
-    let message = `❌ Park failed for ${vehicleNumber} with status ${res.status}`;
-
-    try {
-      const error = res.json().debug_error;
-      if (error) message += ` | debug_error: ${error}`;
-    } catch (e) {
-      message += " | failed to parse debug_error";
+export function setup() {
+  const loginRes = http.post(
+    "http://localhost:8080/login",
+    JSON.stringify({
+      username: "employee1",
+      password: "password123",
+    }),
+    {
+      headers: { "Content-Type": "application/json" },
     }
-    console.error(message);
-  } else {
-    parkedVehicles.push(vehicleNumber);
-  }
+  );
+
+  const token = JSON.parse(loginRes.body).token;
+  return { token };
 }
 
-function unparkVehicle() {
-  if (parkedVehicles.length === 0) return;
+export default function (data) {
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${data.token}`,
+  };
 
-  const vehicleNumber = parkedVehicles.shift(); // remove first parked
-  const payload = JSON.stringify({ vehicle_number: vehicleNumber });
-  const headers = { "Content-Type": "application/json" };
-  // const res = http.post("http://parking.localhost/vehicle/unpark", payload, {
-  //   headers,
-  // });
-  const res = http.post("http://localhost:8080/vehicle/unpark", payload, {
-    headers,
+  // 1. Check-in
+  const checkin = http.post(
+    "http://localhost:8080/api/attendance/checkin",
+    JSON.stringify({
+      user_id: 1,
+      attendance_period_id: 1,
+    }),
+    { headers }
+  );
+  check(checkin, { "check-in success": (r) => r.status === 200 });
+  sleep(1);
+
+  // 2. Check-out
+  const checkout = http.patch(
+    "http://localhost:8080/api/attendance/checkout",
+    JSON.stringify({
+      user_id: 1,
+      attendance_period_id: 1,
+      check_out_at: new Date().toISOString(),
+    }),
+    { headers }
+  );
+  check(checkout, {
+    "check-out success": (r) => r.status === 200 || r.status === 409,
   });
+  sleep(1);
 
-  const passed = check(res, {
-    "unpark status is 200": (r) => r.status === 200,
-  });
+  // 3. Request Overtime
+  const overtime = http.post(
+    "http://localhost:8080/api/attendance/overtime",
+    JSON.stringify({
+      user_id: 1,
+      attendance_period_id: 1,
+      date: new Date().toISOString().split("T")[0],
+      hours: 2,
+    }),
+    { headers }
+  );
+  check(overtime, { "overtime requested": (r) => r.status === 200 });
+  sleep(1);
 
-  if (!passed) {
-    console.error(
-      `❌ Unpark failed for ${vehicleNumber} with status ${res.status}`
-    );
-  }
-}
-
-export default function () {
-  // 40% chance to park, 60% to unpark
-  if (Math.random() < 0.4) {
-    parkVehicle();
-  } else {
-    unparkVehicle();
-  }
-
-  sleep(1); // wait between iterations
+  // 4. Submit Reimbursement
+  const reimbursement = http.post(
+    "http://localhost:8080/api/reimbursement/submit",
+    JSON.stringify({
+      user_id: 1,
+      attendance_period_id: 1,
+      title: "Meal Allowance",
+      amount: 30000,
+    }),
+    { headers }
+  );
+  check(reimbursement, { "reimbursement submitted": (r) => r.status === 200 });
+  sleep(1);
 }

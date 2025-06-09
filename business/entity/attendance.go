@@ -25,6 +25,7 @@ type UpdateAttendance struct {
 	AttendancePeriodID uint
 	CheckOutAt         *time.Time
 	CheckInAt          *time.Time
+	Version            uint
 }
 
 type CreateOvertimeData struct {
@@ -79,9 +80,10 @@ type GetAttendancePeriodFilter struct {
 }
 
 type AttendancePeriod struct {
-	ID        uint      `gorm:"primaryKey"`
-	StartDate time.Time `gorm:"index"` // Optional index
-	EndDate   time.Time `gorm:"index"` // Optional index
+	ID        uint
+	StartDate time.Time
+	EndDate   time.Time
+	Status    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -92,4 +94,9 @@ type UpdateAttendancePeriod struct {
 	StartDate *time.Time
 	EndDate   *time.Time
 	ClosedAt  *time.Time
+}
+
+type CreateAttendancePeriodRequest struct {
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }

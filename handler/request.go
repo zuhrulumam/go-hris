@@ -28,3 +28,8 @@ type LoginRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
+
+type CreateAttendancePeriodRequest struct {
+	StartDate string `json:"start_date" binding:"required" example:"2025-06-01T00:00:00Z"`
+	EndDate   string `json:"end_date" binding:"required" example:"2025-06-15T23:59:59Z"`
+}

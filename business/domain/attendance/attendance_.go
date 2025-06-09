@@ -67,11 +67,21 @@ func (p *attendance) UpdateAttendance(ctx context.Context, data entity.UpdateAtt
 		return x.NewWithCode(http.StatusBadRequest, "no updates provided")
 	}
 
-	if err := db.WithContext(ctx).
+	// Add version update
+	updates["version"] = data.Version + 1
+
+	// Optimistic update
+	tx := db.WithContext(ctx).
 		Model(&entity.Attendance{}).
-		Where("id = ?", data.AttendanceID).
-		Updates(updates).Error; err != nil {
-		return x.WrapWithCode(err, http.StatusInternalServerError, "failed to update attendance")
+		Where("id = ? AND version = ?", data.AttendanceID, data.Version).
+		Updates(updates)
+
+	if tx.RowsAffected == 0 {
+		return x.NewWithCode(http.StatusConflict, "attendance was updated by someone else, please retry")
+	}
+
+	if tx.Error != nil {
+		return x.WrapWithCode(tx.Error, http.StatusInternalServerError, "failed to update attendance")
 	}
 
 	return nil

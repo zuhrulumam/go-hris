@@ -135,3 +135,54 @@ func (e *rest) CreateOvertime(c *gin.Context) {
 		Message: "Overtime submitted successfully!",
 	})
 }
+
+// CreateAttendancePeriod godoc
+// @Summary      Create a new attendance period
+// @Description  Creates a new attendance period with start and end date
+// @Tags         attendance
+// @Accept       json
+// @Produce      json
+// @Param        request body CreateAttendancePeriodRequest true "Attendance Period Data"
+// @Success      201 {object} x.SuccessResponse
+// @Failure      400,500 {object} x.ErrorResponse
+// @Router       /attendance-periods [post]
+// @Security     BearerAuth
+func (e *rest) CreateAttendancePeriod(c *gin.Context) {
+	var input CreateAttendancePeriodRequest
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		e.compileError(c, x.NewWithCode(http.StatusBadRequest, "invalid request body"))
+		return
+	}
+
+	startdate, err := time.Parse("2006-01-02", input.StartDate)
+	if err != nil {
+		e.compileError(c, err)
+		return
+	}
+
+	enddate, err := time.Parse("2006-01-02", input.EndDate)
+	if err != nil {
+		e.compileError(c, err)
+		return
+	}
+
+	if startdate.After(enddate) {
+		e.compileError(c, x.NewWithCode(http.StatusBadRequest, "start date cannot be after end date"))
+		return
+	}
+
+	err = e.uc.Attendance.CreateAttendancePeriod(c.Request.Context(), entity.CreateAttendancePeriodRequest{
+		StartDate: startdate,
+		EndDate:   enddate,
+	})
+	if err != nil {
+		e.compileError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, GenericResponse{
+		Success: true,
+		Message: "Attendance submitted successfully!",
+	})
+}

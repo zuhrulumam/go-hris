@@ -112,3 +112,21 @@ func (p *attendance) CreateOvertime(ctx context.Context, data entity.CreateOvert
 func (p *attendance) GetOvertime(ctx context.Context, filter entity.GetOvertimeFilter) ([]entity.Overtime, error) {
 	return p.AttendanceDom.GetOvertime(ctx, filter)
 }
+
+func (p *attendance) CreateAttendancePeriod(ctx context.Context, req entity.CreateAttendancePeriodRequest) error {
+
+	data := entity.AttendancePeriod{
+		StartDate: req.StartDate,
+		EndDate:   req.EndDate,
+		Status:    "open",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err := p.AttendanceDom.CreateAttendancePeriod(ctx, data)
+	if err != nil {
+		return x.WrapWithCode(err, http.StatusInternalServerError, "failed to create attendance period")
+	}
+
+	return nil
+}
