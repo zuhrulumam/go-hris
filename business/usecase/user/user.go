@@ -10,7 +10,7 @@ import (
 
 type UsecaseItf interface {
 	Register(ctx context.Context, input entity.RegisterRequest) error
-	Login(ctx context.Context, input entity.LoginRequest) (*entity.User, error)
+	Login(ctx context.Context, input entity.LoginRequest) (string, error)
 }
 
 type Option struct {

@@ -9,6 +9,7 @@ type Reimbursement struct {
 	Amount             float64
 	Description        string
 	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type SubmitReimbursementData struct {
@@ -16,6 +17,7 @@ type SubmitReimbursementData struct {
 	AttendancePeriodID uint
 	Amount             float64
 	Description        string
+	Date               time.Time
 }
 
 type GetReimbursementFilter struct {

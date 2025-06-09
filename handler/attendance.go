@@ -21,23 +21,11 @@ var (
 // @Tags         Attendance
 // @Accept       json
 // @Produce      json
-// @Param        body body handler.CheckInRequest true "Check-In Info"
 // @Success      200 {object} handler.CheckInResponse
 // @Failure      400 {object} handler.ErrorResponse
 // @Router       /api/attendance/checkin [post]
 func (e *rest) CheckIn(c *gin.Context) {
-	var input CheckInRequest
 	ctx := c.Request.Context()
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
-		return
-	}
-
-	if err := validate.Struct(input); err != nil {
-		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "failed validation"))
-		return
-	}
 
 	userID, ok := c.Get("userID")
 	if !ok {
@@ -66,23 +54,11 @@ func (e *rest) CheckIn(c *gin.Context) {
 // @Tags         Attendance
 // @Accept       json
 // @Produce      json
-// @Param        body body handler.CheckOutRequest true "Check-Out Info"
 // @Success      200 {object} handler.CheckOutResponse
 // @Failure      400 {object} handler.ErrorResponse
 // @Router       /api/attendance/checkout [post]
 func (e *rest) CheckOut(c *gin.Context) {
-	var input CheckOutRequest
 	ctx := c.Request.Context()
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
-		return
-	}
-
-	if err := validate.Struct(input); err != nil {
-		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "failed validation"))
-		return
-	}
 
 	userID, ok := c.Get("userID")
 	if !ok {
@@ -114,7 +90,7 @@ func (e *rest) CheckOut(c *gin.Context) {
 // @Param        body body handler.OvertimeRequest true "Overtime Info"
 // @Success      200 {object} handler.GenericResponse
 // @Failure      400 {object} handler.ErrorResponse
-// @Router       /api/overtime [post]
+// @Router       /api/attendance/overtime [post]
 func (e *rest) CreateOvertime(c *gin.Context) {
 	var (
 		input OvertimeRequest
@@ -137,10 +113,17 @@ func (e *rest) CreateOvertime(c *gin.Context) {
 		return
 	}
 
-	err := e.uc.Attendance.CreateOvertime(ctx, entity.CreateOvertimeData{
+	date, err := time.Parse("2006-01-02", input.Date)
+	if err != nil {
+		e.compileError(c, err)
+		return
+	}
+
+	err = e.uc.Attendance.CreateOvertime(ctx, entity.CreateOvertimeData{
 		UserID:      userID.(uint),
 		Hours:       input.Hours,
 		Description: input.Description,
+		Date:        date,
 	})
 	if err != nil {
 		e.compileError(c, err)

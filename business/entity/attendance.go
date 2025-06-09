@@ -10,7 +10,7 @@ type Attendance struct {
 	CheckedInAt        *time.Time
 	CheckedOutAt       *time.Time
 	CreatedAt          time.Time
-	UpadatedAt         *time.Time
+	UpdatedAt          *time.Time
 }
 
 type CreateAttendance struct {
@@ -20,9 +20,11 @@ type CreateAttendance struct {
 }
 
 type UpdateAttendance struct {
+	AttendanceID       uint
 	UserID             uint
 	AttendancePeriodID uint
 	CheckOutAt         *time.Time
+	CheckInAt          *time.Time
 }
 
 type CreateOvertimeData struct {
@@ -68,12 +70,12 @@ type GetAttendance struct {
 }
 
 type GetAttendancePeriodFilter struct {
-	ID        string
-	Status    string
-	UserID    string
-	StartDate *time.Time
-	EndDate   *time.Time
-	UseLock   bool
+	ID           string
+	Status       string
+	UserID       string
+	StartDate    *time.Time
+	EndDate      *time.Time
+	ContainsDate *time.Time
 }
 
 type AttendancePeriod struct {

@@ -20,3 +20,7 @@ type GenericResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+type AuthResponse struct {
+	Token string `json:"token"`
+}

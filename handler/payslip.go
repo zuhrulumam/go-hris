@@ -69,6 +69,17 @@ func (e *rest) CreatePayroll(c *gin.Context) {
 		return
 	}
 
+	isAdmin, ok := c.Get("isAdmin")
+	if !ok {
+		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "missing user context"))
+		return
+	}
+
+	if !isAdmin.(bool) {
+		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "only admin"))
+		return
+	}
+
 	err := e.uc.Payslip.CreatePayroll(c.Request.Context(), req.PeriodID)
 	if err != nil {
 		e.compileError(c, err)

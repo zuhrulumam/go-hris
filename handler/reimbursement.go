@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zuhrulumam/go-hris/business/entity"
@@ -19,34 +20,40 @@ import (
 // @Failure      400 {object} handler.ErrorResponse
 // @Failure      401 {object} handler.ErrorResponse
 // @Router       /api/reimbursement [post]
-func (e *rest) SubmitReimbursement(c *gin.Context) {
+func (r *rest) SubmitReimbursement(c *gin.Context) {
 	var input ReimbursementRequest
 	ctx := c.Request.Context()
 
 	userID, ok := c.Get("userID")
 	if !ok {
-		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "missing user context"))
+		r.compileError(c, x.NewWithCode(http.StatusUnauthorized, "missing user context"))
 		return
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
+		r.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "invalid input"))
 		return
 	}
 
 	if err := validate.Struct(input); err != nil {
-		e.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "validation failed"))
+		r.compileError(c, x.WrapWithCode(err, http.StatusBadRequest, "validation failed"))
 		return
 	}
 
-	err := e.uc.Reimbursement.SubmitReimbursement(ctx, entity.SubmitReimbursementData{
+	date, err := time.Parse("2006-01-02", input.Date)
+	if err != nil {
+		r.compileError(c, err)
+		return
+	}
+
+	err = r.uc.Reimbursement.SubmitReimbursement(ctx, entity.SubmitReimbursementData{
 		UserID:      userID.(uint),
 		Amount:      input.Amount,
 		Description: input.Description,
-		// Date:        input.Date,
+		Date:        date,
 	})
 	if err != nil {
-		e.compileError(c, err)
+		r.compileError(c, err)
 		return
 	}
 

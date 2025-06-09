@@ -1,9 +1,9 @@
 APP_NAME = parking-lot
 IMAGE_NAME = $(APP_NAME):latest
 
-# Run seeding: floor=5, row=20, col=20
+# Run seeding
 seed:
-	go run main.go seed 5 20 20
+	go run main.go seed
 
 # Run app
 start:

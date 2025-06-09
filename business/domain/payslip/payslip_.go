@@ -4,95 +4,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/zuhrulumam/go-hris/business/entity"
 	"github.com/zuhrulumam/go-hris/pkg"
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
 	"gorm.io/gorm"
 )
-
-func (p *payslip) CreatePayroll(ctx context.Context, data entity.CreatePayrollData) error {
-	db := pkg.GetTransactionFromCtx(ctx, p.db)
-
-	// Step 1: Check if payroll already exists for this period
-	var count int64
-	err := db.WithContext(ctx).Model(&entity.Payslip{}).
-		Where("attendance_period_id = ?", data.AttendancePeriodID).
-		Count(&count).Error
-	if err != nil {
-		return x.WrapWithCode(err, http.StatusInternalServerError, "failed to check existing payroll")
-	}
-	if count > 0 {
-		return x.NewWithCode(http.StatusConflict, "payroll already processed for this period")
-	}
-
-	// Step 2: Get all employees
-	var employees []entity.User
-	err = db.WithContext(ctx).Where("role = ?", "employee").Find(&employees).Error
-	if err != nil {
-		return x.WrapWithCode(err, http.StatusInternalServerError, "failed to get employees")
-	}
-
-	// Step 3: For each employee, calculate payslip
-	for _, emp := range employees {
-		// 3.1 Get attendance days
-		var attendedDays int64
-		err = db.WithContext(ctx).Model(&entity.Attendance{}).
-			Where("user_id = ? AND attendance_period_id = ?", emp.ID, data.AttendancePeriodID).
-			Count(&attendedDays).Error
-		if err != nil {
-			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to count attendance")
-		}
-
-		// 3.2 Get overtime hours
-		var totalOvertime float64
-		err = db.WithContext(ctx).Model(&entity.Overtime{}).
-			Select("COALESCE(SUM(hours), 0)").
-			Where("user_id = ? AND attendance_period_id = ?", emp.ID, data.AttendancePeriodID).
-			Scan(&totalOvertime).Error
-		if err != nil {
-			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to calculate overtime")
-		}
-
-		// 3.3 Get reimbursement total
-		var reimbursementTotal float64
-		err = db.WithContext(ctx).Model(&entity.Reimbursement{}).
-			Select("COALESCE(SUM(amount), 0)").
-			Where("user_id = ? AND attendance_period_id = ?", emp.ID, data.AttendancePeriodID).
-			Scan(&reimbursementTotal).Error
-		if err != nil {
-			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to calculate reimbursement")
-		}
-
-		// 3.4 Calculate final values
-		const workingDays = 20 // assuming fixed working days/month
-		proratedSalary := (float64(attendedDays) / float64(workingDays)) * emp.Salary
-		overtimeAmount := totalOvertime * (emp.Salary / float64(workingDays) / 8.0 * 2)
-		totalPay := proratedSalary + overtimeAmount + reimbursementTotal
-
-		// 3.5 Create payslip record
-		payslip := entity.Payslip{
-			UserID:             emp.ID,
-			AttendancePeriodID: data.AttendancePeriodID,
-			BaseSalary:         emp.Salary,
-			WorkingDays:        workingDays,
-			AttendedDays:       int(attendedDays),
-			AttendanceAmount:   proratedSalary,
-			OvertimeHours:      totalOvertime,
-			OvertimeAmount:     overtimeAmount,
-			ReimbursementTotal: reimbursementTotal,
-			TotalPay:           totalPay,
-			CreatedAt:          time.Now(),
-		}
-
-		if err := db.WithContext(ctx).Create(&payslip).Error; err != nil {
-			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to create payslip")
-		}
-	}
-
-	return nil
-}
 
 func (p *payslip) GetPayslip(ctx context.Context, req entity.GetPayslipRequest) (*entity.Payslip, error) {
 	db := pkg.GetTransactionFromCtx(ctx, p.db)

@@ -17,10 +17,28 @@ func (p *attendance) CheckIn(ctx context.Context, data entity.CheckIn) error {
 		return x.NewWithCode(http.StatusBadRequest, "cannot check in on weekends")
 	}
 
-	// Create attendance record
-	return p.AttendanceDom.CreateAttendance(ctx, entity.CreateAttendance{
-		UserID:    data.UserID,
-		CheckInAt: data.Date,
+	return p.TransactionDom.RunInTx(ctx, func(newCtx context.Context) error {
+
+		attPeriod, err := p.AttendanceDom.GetAttendancePeriods(newCtx, entity.GetAttendancePeriodFilter{
+			ContainsDate: &data.Date,
+			Status:       "open",
+		})
+		if err != nil {
+			return err
+		}
+
+		// Create attendance record
+		err = p.AttendanceDom.CreateAttendance(ctx, entity.CreateAttendance{
+			UserID:             data.UserID,
+			AttendancePeriodID: attPeriod[0].ID,
+			CheckInAt:          data.Date,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		return nil
 	})
 
 }
@@ -28,11 +46,24 @@ func (p *attendance) CheckIn(ctx context.Context, data entity.CheckIn) error {
 func (p *attendance) CheckOut(ctx context.Context, data entity.CheckOut) error {
 	return p.TransactionDom.RunInTx(ctx, func(newCtx context.Context) error {
 
-		// Update with check-out time
-		return p.AttendanceDom.UpdateAttendance(newCtx, entity.UpdateAttendance{
-			// ID:         att.ID,
-			CheckOutAt: pkg.TimePtr(data.Date),
+		att, err := p.AttendanceDom.GetAttendance(newCtx, entity.GetAttendance{
+			UserID: data.UserID,
+			Date:   data.Date,
 		})
+		if err != nil {
+			return err
+		}
+
+		// Update with check-out time
+		err = p.AttendanceDom.UpdateAttendance(newCtx, entity.UpdateAttendance{
+			AttendanceID: att[0].ID,
+			CheckOutAt:   pkg.TimePtr(data.Date),
+		})
+		if err != nil {
+			return err
+		}
+
+		return nil
 	})
 }
 
@@ -51,9 +82,16 @@ func (p *attendance) CreateOvertime(ctx context.Context, data entity.CreateOvert
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusNotFound, "attendance not found for the date")
 		}
+
+		if len(att) < 1 {
+			return x.NewWithCode(http.StatusBadRequest, "must check out before submitting overtime")
+		}
+
 		if att[0].CheckedOutAt == nil {
 			return x.NewWithCode(http.StatusBadRequest, "must check out before submitting overtime")
 		}
+
+		data.AttendancePeriodID = att[0].AttendancePeriodID
 
 		// Check: already submitted overtime?
 		existing, err := p.AttendanceDom.GetOvertime(newCtx, entity.GetOvertimeFilter{

@@ -27,7 +27,7 @@ func (e *rest) compileError(c *gin.Context, err error) {
 		he = errors.EM.Message("EN", "internal")
 	}
 
-	logger.LogWithCtx(c, e.log, err.Error())
+	logger.LogWithCtx(c.Request.Context(), e.log, err.Error())
 
 	c.JSON(httpStatus, ErrorResponse{
 		HumanError: he,

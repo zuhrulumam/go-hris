@@ -2,19 +2,31 @@ package reimbursement
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/zuhrulumam/go-hris/business/entity"
-	x "github.com/zuhrulumam/go-hris/pkg/errors"
 )
 
 func (p *reimbursement) SubmitReimbursement(ctx context.Context, data entity.SubmitReimbursementData) error {
-	// Simple validation
-	if data.Amount <= 0 {
-		return x.NewWithCode(http.StatusBadRequest, "reimbursement amount must be greater than zero")
-	}
 
-	return p.ReimbursementDom.SubmitReimbursement(ctx, data)
+	return p.TransactionDom.RunInTx(ctx, func(newCtx context.Context) error {
+
+		attPeriod, err := p.AttendanceDom.GetAttendancePeriods(newCtx, entity.GetAttendancePeriodFilter{
+			ContainsDate: &data.Date,
+			Status:       "open",
+		})
+		if err != nil {
+			return err
+		}
+
+		data.AttendancePeriodID = attPeriod[0].ID
+
+		err = p.ReimbursementDom.SubmitReimbursement(ctx, data)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 
 }
 

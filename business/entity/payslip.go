@@ -11,7 +11,7 @@ type Payslip struct {
 	AttendedDays       int
 	AttendanceAmount   float64
 	OvertimeHours      float64
-	OvertimeAmount     float64
+	OvertimePay        float64
 	ReimbursementTotal float64
 	TotalPay           float64
 	CreatedAt          time.Time

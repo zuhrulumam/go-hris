@@ -32,9 +32,11 @@ type User struct {
 }
 
 type AttendancePeriod struct {
-	ID        uint      `gorm:"primaryKey"`
-	StartDate time.Time `gorm:"index"` // Optional index
-	EndDate   time.Time `gorm:"index"` // Optional index
+	ID        uint `gorm:"primaryKey"`
+	StartDate time.Time
+	EndDate   time.Time
+	Status    string
+	ClosedAt  *time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -43,16 +45,13 @@ type Attendance struct {
 	ID                 uint `gorm:"primaryKey"`
 	UserID             uint `gorm:"index"` // For per-user lookup
 	User               User
-	Date               time.Time `gorm:"index"` // For filtering by date
-	AttendancePeriodID uint      `gorm:"index"` // For payroll filtering
+	AttendancePeriodID uint `gorm:"index"` // For payroll filtering
 	AttendancePeriod   AttendancePeriod
+	CheckedInAt        time.Time
+	CheckedOutAt       time.Time
 	CreatedAt          time.Time
-
-	// Ensure uniqueness: one submission per user per day
-	// This also improves lookup speed for validation
-	// Named composite index
-	_  struct{} `gorm:"uniqueIndex:idx_attendance_user_date,priority:1"`
-	_2 struct{} `gorm:"uniqueIndex:idx_attendance_user_date,priority:2"`
+	UpdatedAt          time.Time
+	Date               time.Time `gorm:"index"` // For filtering by date
 }
 
 type Overtime struct {
@@ -63,11 +62,9 @@ type Overtime struct {
 	Hours              float64   `gorm:"not null"` // Max 3 hrs per day
 	AttendancePeriodID uint      `gorm:"index"`    // For payroll run
 	AttendancePeriod   AttendancePeriod
+	Description        string
 	CreatedAt          time.Time
-
-	// Optional: prevent duplicate overtime per user per date
-	_  struct{} `gorm:"uniqueIndex:idx_overtime_user_date,priority:1"`
-	_2 struct{} `gorm:"uniqueIndex:idx_overtime_user_date,priority:2"`
+	UpdatedAt          time.Time
 }
 
 type Reimbursement struct {
@@ -78,7 +75,9 @@ type Reimbursement struct {
 	Description        string
 	AttendancePeriodID uint `gorm:"index"` // For payroll run
 	AttendancePeriod   AttendancePeriod
+	Date               time.Time
 	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type Payslip struct {
@@ -87,24 +86,21 @@ type Payslip struct {
 	User               User
 	AttendancePeriodID uint `gorm:"index"` // For period filtering
 	AttendancePeriod   AttendancePeriod
-
-	TotalWorkDays      int
-	TotalOvertimeHours float64
-	TotalReimburse     float64
+	WorkingDays        int
+	OvertimeHours      float64
+	ReimbursementTotal float64
 	BaseSalary         float64
+	AttendedDays       int
+	AttendanceAmount   float64
 	ProratedSalary     float64
 	OvertimePay        float64
-	TakeHomePay        float64
+	TotalPay           float64
 	CreatedAt          time.Time
-
-	// Ensure only one payslip per user per period
-	_  struct{} `gorm:"uniqueIndex:idx_payslip_user_period,priority:1"`
-	_2 struct{} `gorm:"uniqueIndex:idx_payslip_user_period,priority:2"`
+	UpdatedAt          time.Time
 }
 
 var seedCommand = &cobra.Command{
-	Use:  "seed [floors] [rows] [cols]",
-	Args: cobra.ExactArgs(3),
+	Use: "seed",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		db, _ := connectDB()
@@ -126,18 +122,41 @@ func seed(db *gorm.DB) {
 		log.Fatalf("failed to migrate tables: %v", err)
 	}
 
-	// // add constraint
-	// err := db.Exec(`
-	// 	CREATE UNIQUE INDEX IF NOT EXISTS unique_active_spot
-	// 	ON vehicles(spot_id)
-	// 	WHERE unparked_at IS NULL
-	// `).Error
-	// if err != nil {
-	// 	log.Fatalf("failed to add index table: %v", err)
-	// }
+	err := db.Exec(`
+    CREATE INDEX IF NOT EXISTS idx_attendance_period_user 
+    ON attendances (attendance_period_id, user_id);
+	`).Error
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	err = db.Exec(`
+    CREATE INDEX IF NOT EXISTS idx_reimbursement_period_user 
+    ON reimbursements (attendance_period_id, user_id);
+	`).Error
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	err = db.Exec(`
+    CREATE INDEX IF NOT EXISTS idx_overtime_period_user 
+    ON overtimes (attendance_period_id, user_id);
+	`).Error
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	err = db.Exec(`
+    CREATE INDEX IF NOT EXISTS idx_payslip_period_user 
+    ON payslips (attendance_period_id, user_id);
+	`).Error
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	seedAdmin(db)
 	seedEmployees(db, 100)
+	seedAttendancePeriods(db)
 }
 
 func connectDB() (*gorm.DB, error) {
@@ -204,4 +223,35 @@ func hashPassword(pw string) string {
 		log.Fatalf("failed to hash password: %v", err)
 	}
 	return string(hashed)
+}
+
+func seedAttendancePeriods(db *gorm.DB) {
+	periods := []AttendancePeriod{
+		{
+			StartDate: time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2025, 6, 15, 23, 59, 59, 0, time.UTC),
+			Status:    "open",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		{
+			StartDate: time.Date(2025, 6, 16, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2025, 6, 30, 23, 59, 59, 0, time.UTC),
+			Status:    "open",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	}
+
+	for _, p := range periods {
+		var exists AttendancePeriod
+		err := db.Where("start_date = ? AND end_date = ?", p.StartDate, p.EndDate).First(&exists).Error
+		if err == gorm.ErrRecordNotFound {
+			if err := db.Create(&p).Error; err != nil {
+				log.Printf("⚠️  Failed to insert attendance period: %v", err)
+			}
+		}
+	}
+
+	log.Println("✅ attendance period created")
 }

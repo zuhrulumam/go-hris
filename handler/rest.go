@@ -39,12 +39,18 @@ func (r rest) Serve() {
 	// swagger
 	// r.app.GET("/swagger/*", swagger.HandlerDefault)
 
+	r.app.POST("/login", r.Login)
+	r.app.POST("/register", r.Register)
+
 	api := r.app.Group("/api")
 	api.Use(middlewares.JWTMiddleware())
 
-	api.POST("/attendace/checkin", r.CheckIn)
+	api.POST("/attendance/checkin", r.CheckIn)
+	api.POST("/attendance/checkout", r.CheckOut)
+	api.POST("/attendance/overtime", r.CreateOvertime)
 
-	api.POST("/attendace/checkout", r.CheckOut)
+	api.POST("/reimbursement/submit", r.SubmitReimbursement)
 
-	api.POST("/attendace/overtime", r.CreateOvertime)
+	api.POST("/payroll/create", r.CreatePayroll)
+	api.GET("/payslip", r.GetPayslip)
 }

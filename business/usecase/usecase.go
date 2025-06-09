@@ -5,12 +5,14 @@ import (
 	"github.com/zuhrulumam/go-hris/business/usecase/attendance"
 	"github.com/zuhrulumam/go-hris/business/usecase/payslip"
 	"github.com/zuhrulumam/go-hris/business/usecase/reimbursement"
+	"github.com/zuhrulumam/go-hris/business/usecase/user"
 )
 
 type Usecase struct {
 	Attendance    attendance.UsecaseItf
 	Reimbursement reimbursement.UsecaseItf
 	Payslip       payslip.UsecaseItf
+	User          user.UsecaseItf
 }
 
 type Option struct {
@@ -23,10 +25,19 @@ func Init(dom *domain.Domain, opt Option) *Usecase {
 			TransactionDom: dom.Transaction,
 		}),
 		Reimbursement: reimbursement.InitReimbursementUsecase(reimbursement.Option{
-			// ReimbursementDom: dom.,
-			TransactionDom: dom.Transaction,
+			ReimbursementDom: dom.Reimbursement,
+			TransactionDom:   dom.Transaction,
+			AttendanceDom:    dom.Attendance,
 		}),
 		Payslip: payslip.InitPayslipUsecase(payslip.Option{
+			TransactionDom:   dom.Transaction,
+			PayslipDom:       dom.Payslip,
+			AttendanceDom:    dom.Attendance,
+			ReimbursementDom: dom.Reimbursement,
+			UserDom:          dom.User,
+		}),
+		User: user.InitUserUsecase(user.Option{
+			UserDom:        dom.User,
 			TransactionDom: dom.Transaction,
 		}),
 	}

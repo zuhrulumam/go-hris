@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zuhrulumam/go-hris/business/entity"
+	"github.com/zuhrulumam/go-hris/pkg"
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
 )
 
@@ -82,7 +83,7 @@ func (p *payslip) GetPayslip(ctx context.Context, userID, periodID uint) (*entit
 		AttendedDays:       attendedDays,
 		AttendanceAmount:   attendanceAmount,
 		OvertimeHours:      totalHours,
-		OvertimeAmount:     overtimeAmount,
+		OvertimePay:        overtimeAmount,
 		ReimbursementTotal: totalReimbursement,
 		TotalPay:           totalPay,
 		CreatedAt:          time.Now(), // or fetch from DB if already generated
@@ -167,7 +168,7 @@ func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
 				AttendedDays:       attendedDays,
 				AttendanceAmount:   attendanceAmount,
 				OvertimeHours:      overtimeHours,
-				OvertimeAmount:     overtimeAmount,
+				OvertimePay:        overtimeAmount,
 				ReimbursementTotal: reimbursementTotal,
 				TotalPay:           totalPay,
 				CreatedAt:          time.Now(),
@@ -182,8 +183,8 @@ func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
 
 		// 7. Close the attendance period
 		err = p.AttendanceDom.UpdateAttendancePeriod(newCtx, entity.UpdateAttendancePeriod{
-			ID: periodID,
-			// Status: ptr.String("closed"),
+			ID:     periodID,
+			Status: pkg.StringPtr("close"),
 		})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to close attendance period")

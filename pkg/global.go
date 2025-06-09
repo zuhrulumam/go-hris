@@ -17,3 +17,7 @@ func BoolPtr(b bool) *bool {
 func TimePtr(b time.Time) *time.Time {
 	return &b
 }
+
+func StringPtr(b string) *string {
+	return &b
+}

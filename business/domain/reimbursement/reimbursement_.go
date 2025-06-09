@@ -3,7 +3,6 @@ package reimbursement
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/zuhrulumam/go-hris/business/entity"
@@ -14,14 +13,6 @@ import (
 
 func (r *reimbursement) SubmitReimbursement(ctx context.Context, data entity.SubmitReimbursementData) error {
 	db := pkg.GetTransactionFromCtx(ctx, r.db)
-
-	// Validate
-	if data.Amount <= 0 {
-		return x.NewWithCode(http.StatusBadRequest, "reimbursement amount must be greater than 0")
-	}
-	if strings.TrimSpace(data.Description) == "" {
-		return x.NewWithCode(http.StatusBadRequest, "description is required")
-	}
 
 	reim := entity.Reimbursement{
 		UserID:             data.UserID,
