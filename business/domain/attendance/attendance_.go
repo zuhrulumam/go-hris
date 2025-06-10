@@ -18,18 +18,6 @@ func (p *attendance) CreateAttendance(ctx context.Context, data entity.CreateAtt
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-	// Prevent weekend check-ins
-	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
-		return x.NewWithCode(http.StatusBadRequest, "cannot check in on weekends")
-	}
-
-	// Check if attendance already exists
-	var existing entity.Attendance
-	err := db.WithContext(ctx).Where("user_id = ? AND date = ?", data.UserID, today).First(&existing).Error
-	if err == nil {
-		return x.NewWithCode(http.StatusConflict, "already checked in today")
-	}
-
 	// Insert new attendance
 	attendance := entity.Attendance{
 		UserID:             data.UserID,
@@ -76,12 +64,12 @@ func (p *attendance) UpdateAttendance(ctx context.Context, data entity.UpdateAtt
 		Where("id = ? AND version = ?", data.AttendanceID, data.Version).
 		Updates(updates)
 
-	if tx.RowsAffected == 0 {
-		return x.NewWithCode(http.StatusConflict, "attendance was updated by someone else, please retry")
-	}
-
 	if tx.Error != nil {
 		return x.WrapWithCode(tx.Error, http.StatusInternalServerError, "failed to update attendance")
+	}
+
+	if tx.RowsAffected == 0 {
+		return x.NewWithCode(http.StatusConflict, "attendance was updated by someone else, please retry")
 	}
 
 	return nil

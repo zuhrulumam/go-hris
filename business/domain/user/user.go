@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-//go:generate mockgen -source=business/domain/user/user.go -destination=mocks/mock_user.go -package=mocks
+//go:generate mockgen -source=business/domain/user/user.go -destination=mocks/domain/user/mock_user.go -package=mocks
 type DomainItf interface {
 	Register(ctx context.Context, req entity.RegisterRequest) error
 	Login(ctx context.Context, req entity.LoginRequest) (*entity.User, error)

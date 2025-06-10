@@ -34,9 +34,9 @@ type GetPayrollSummaryRequest struct {
 }
 
 type PayrollSummaryItem struct {
-	UserID   uint
-	Username string
-	TotalPay float64
+	UserID   uint    `json:"user_id"`
+	Username string  `json:"username"`
+	TotalPay float64 `json:"total_pay"`
 }
 
 type GetPayrollSummaryResponse struct {

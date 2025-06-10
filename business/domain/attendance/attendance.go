@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-//go:generate mockgen -source=business/domain/attendance/attendance.go -destination=mocks/mock_attendance.go -package=mocks
+//go:generate mockgen -source=business/domain/attendance/attendance.go -destination=mocks/domain/attendance/mock_attendance.go -package=mocks
 type DomainItf interface {
 	CreateAttendance(ctx context.Context, data entity.CreateAttendance) error
 	UpdateAttendance(ctx context.Context, data entity.UpdateAttendance) error

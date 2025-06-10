@@ -1,6 +1,10 @@
 package handler
 
-import "github.com/zuhrulumam/go-hris/business/entity"
+import (
+	"time"
+
+	"github.com/zuhrulumam/go-hris/business/entity"
+)
 
 type CheckInResponse struct {
 	Success bool   `json:"success"`
@@ -28,12 +32,25 @@ type AuthResponse struct {
 }
 
 type PayslipListResponse struct {
-	Data       []entity.Payslip `json:"data"`
-	TotalData  int              `json:"total_data"`
-	TotalPages int              `json:"total_pages"`
+	Data       []PayslipDataResp `json:"data"`
+	TotalData  int               `json:"total_data"`
+	TotalPages int               `json:"total_pages"`
 }
 
 type GetPayrollSummaryResponse struct {
-	Items      []entity.PayrollSummaryItem `json:"items"`
+	Items      []entity.PayrollSummaryItem `json:"data"`
 	GrandTotal float64                     `json:"grand_total"`
+}
+
+type PayslipDataResp struct {
+	AttendancePeriodID uint      `json:"attendance_period_id"`
+	BaseSalary         string    `json:"base_salary"`
+	WorkingDays        int       `json:"working_days"`
+	AttendedDays       int       `json:"attended_days"`
+	AttendanceAmount   string    `json:"attendance_amount"`
+	OvertimeHours      float64   `json:"overtime_hours"`
+	OvertimePay        string    `json:"overtime_pay"`
+	ReimbursementTotal string    `json:"reimbursement_total"`
+	TotalPay           string    `json:"total_pay"`
+	CreatedAt          time.Time `json:"created_at"`
 }

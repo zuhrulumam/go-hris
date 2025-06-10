@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-//go:generate mockgen -source=business/domain/payslip/payslip.go -destination=mocks/mock_payslip.go -package=mocks
+//go:generate mockgen -source=business/domain/payslip/payslip.go -destination=mocks/domain/payslip/mock_payslip.go -package=mocks
 type DomainItf interface {
 	GetPayslip(ctx context.Context, filter entity.GetPayslipRequest) ([]entity.Payslip, int64, int, error)
 	GetPayrollSummary(ctx context.Context, req entity.GetPayrollSummaryRequest) (*entity.GetPayrollSummaryResponse, error)

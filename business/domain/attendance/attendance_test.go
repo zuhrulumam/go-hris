@@ -1,351 +1,723 @@
 package attendance_test
 
-// func TestGetAvailableAttendanceSpot(t *testing.T) {
-// 	tests := []struct {
-// 		name         string
-// 		input        entity.GetAvailableAttendanceSpot
-// 		mockQuery    string
-// 		mockRows     *sqlmock.Rows
-// 		expectError  bool
-// 		expectedData []entity.AttendanceSpot
-// 	}{
-// 		{
-// 			name: "Success with car type, active=true, occupied=false",
-// 			input: entity.GetAvailableAttendanceSpot{
-// 				VehicleType: "car",
-// 				Active:      pkg.BoolPtr(true),
-// 				Occupied:    pkg.BoolPtr(false),
-// 			},
-// 			mockQuery: `SELECT \* FROM "attendance_spots"`,
-// 			mockRows: sqlmock.NewRows([]string{"id", "floor", "row", "col", "type", "occupied", "active"}).
-// 				AddRow(1, 1, 1, 1, "car", false, true),
-// 			expectError: false,
-// 			expectedData: []entity.AttendanceSpot{
-// 				{ID: 1, Floor: 1, Row: 1, Col: 1, Type: "car", Occupied: false, Active: true},
-// 			},
-// 		},
-// 		{
-// 			name: "No results found",
-// 			input: entity.GetAvailableAttendanceSpot{
-// 				VehicleType: "motor",
-// 				Active:      pkg.BoolPtr(true),
-// 			},
-// 			mockQuery:    `SELECT \* FROM "attendance_spots"`,
-// 			mockRows:     sqlmock.NewRows([]string{"id", "floor", "row", "col", "type", "occupied", "active"}),
-// 			expectError:  false,
-// 			expectedData: []entity.AttendanceSpot{},
-// 		},
-// 	}
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			db, mock, cleanup := pkg.SetupMockDB(t)
-// 			defer cleanup()
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/zuhrulumam/go-hris/business/domain/attendance"
+	"github.com/zuhrulumam/go-hris/business/entity"
+	"github.com/zuhrulumam/go-hris/pkg"
+)
 
-// 			mock.ExpectQuery(tt.mockQuery).WillReturnRows(tt.mockRows)
+func TestCreateAttendance(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        entity.CreateAttendance
+		existingData bool // Simulate attendance already exists
+		expectError  bool
+		errorType    error // Optional, to check for conflict error
+	}{
+		{
+			name: "Success create attendance",
+			input: entity.CreateAttendance{
+				UserID:             1,
+				AttendancePeriodID: 100,
+			},
+			existingData: false,
+			expectError:  false,
+		},
+		{
+			name: "DB insert error",
+			input: entity.CreateAttendance{
+				UserID:             3,
+				AttendancePeriodID: 300,
+			},
+			existingData: false,
+			expectError:  true,
+		},
+	}
 
-// 			d := attendance.InitAttendanceDomain(attendance.Option{DB: db})
-// 			result, err := d.GetAvailableAttendanceSpot(context.Background(), tt.input)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, cleanup := pkg.SetupMockDB(t)
+			defer cleanup()
 
-// 			if tt.expectError {
-// 				assert.Error(t, err)
-// 			} else {
-// 				assert.NoError(t, err)
-// 				assert.Equal(t, tt.expectedData, result)
-// 			}
+			now := time.Now()
+			today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-// 			assert.NoError(t, mock.ExpectationsWereMet())
-// 		})
-// 	}
-// }
+			// Expect SELECT to check if already attended
+			if tt.existingData {
+				rows := sqlmock.NewRows([]string{"id", "user_id", "date"}).
+					AddRow(1, tt.input.UserID, today)
+				mock.ExpectQuery(`SELECT .* FROM "attendances"`).
+					WithArgs(tt.input.UserID, today).
+					WillReturnRows(rows)
+			} else {
+				if tt.expectError {
+					// Simulate insert error
+					mock.ExpectBegin()
+					mock.ExpectExec(`INSERT INTO "attendances"`).
+						WillReturnError(errors.New("insert error"))
+					mock.ExpectRollback()
+				} else {
+					mock.ExpectBegin()
+					mock.ExpectQuery(`INSERT INTO "attendances"`).
+						WithArgs(tt.input.UserID, today, tt.input.AttendancePeriodID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+						WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+					mock.ExpectCommit()
+				}
+			}
 
-// func TestInsertVehicle(t *testing.T) {
-// 	tests := []struct {
-// 		name        string
-// 		input       entity.InsertVehicle
-// 		expectError bool
-// 	}{
-// 		{
-// 			name: "Success insert vehicle",
-// 			input: entity.InsertVehicle{
-// 				VehicleNumber: "B1234XYZ",
-// 				VehicleType:   "car",
-// 				SpotID:        "1-1-1",
-// 			},
-// 			expectError: false,
-// 		},
-// 		{
-// 			name: "Error on insert",
-// 			input: entity.InsertVehicle{
-// 				VehicleNumber: "INVALID",
-// 				VehicleType:   "motor",
-// 				SpotID:        "1-1-2",
-// 			},
-// 			expectError: true,
-// 		},
-// 	}
+			a := attendance.InitAttendanceDomain(attendance.Option{
+				DB: db,
+			})
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			db, mock, cleanup := pkg.SetupMockDB(t)
-// 			defer cleanup()
+			tx := db.Begin()
+			ctx := context.WithValue(context.Background(), pkg.TxCtxValue, tx)
 
-// 			// Simulate insert behavior
-// 			if tt.expectError {
-// 				mock.ExpectBegin()
-// 				mock.ExpectExec(`INSERT INTO "vehicles"`).
-// 					WillReturnError(errors.New("insert failed"))
-// 				mock.ExpectRollback()
-// 			} else {
-// 				mock.ExpectBegin()
-// 				mock.ExpectQuery(`INSERT INTO "vehicles"`).
-// 					WithArgs(tt.input.VehicleNumber, tt.input.VehicleType, tt.input.SpotID, sqlmock.AnyArg(), sqlmock.AnyArg()).
-// 					WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
-// 				mock.ExpectCommit()
-// 			}
+			err := a.CreateAttendance(ctx, tt.input)
 
-// 			d := attendance.InitAttendanceDomain(attendance.Option{DB: db})
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorType != nil {
+					assert.EqualError(t, err, tt.errorType.Error())
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-// 			tx := db.Begin()
-// 			ctx := context.WithValue(context.Background(), pkg.TxCtxValue, tx)
-// 			err := d.InsertVehicle(ctx, tt.input)
+func TestUpdateAttendance(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name        string
+		input       entity.UpdateAttendance
+		mockSetup   func(mock sqlmock.Sqlmock, input entity.UpdateAttendance)
+		expectError bool
+		errorText   string
+	}{
+		{
+			name: "Success update attendance",
+			input: entity.UpdateAttendance{
+				AttendanceID: 1,
+				Version:      1,
+				CheckOutAt:   &now,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.UpdateAttendance) {
+				mock.ExpectBegin()
+				mock.ExpectExec(`UPDATE "attendances"`).
+					WithArgs(sqlmock.AnyArg(), input.Version+1, sqlmock.AnyArg(), input.AttendanceID, input.Version).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit()
+			},
+			expectError: false,
+		},
+		{
+			name: "Missing attendance ID",
+			input: entity.UpdateAttendance{
+				Version:   1,
+				CheckInAt: &now,
+			},
+			mockSetup:   nil,
+			expectError: true,
+			errorText:   "attendance ID is required",
+		},
+		{
+			name: "No update fields provided",
+			input: entity.UpdateAttendance{
+				AttendanceID: 2,
+				Version:      1,
+			},
+			mockSetup:   nil,
+			expectError: true,
+			errorText:   "no updates provided",
+		},
+		{
+			name: "Version conflict",
+			input: entity.UpdateAttendance{
+				AttendanceID: 3,
+				Version:      1,
+				CheckOutAt:   &now,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.UpdateAttendance) {
+				mock.ExpectBegin()
+				mock.ExpectExec(`UPDATE "attendances"`).
+					WithArgs(sqlmock.AnyArg(), input.Version+1, sqlmock.AnyArg(), input.AttendanceID, input.Version).
+					WillReturnResult(sqlmock.NewResult(0, 0)) // 0 row affected
+				mock.ExpectCommit()
+			},
+			expectError: true,
+			errorText:   "attendance was updated by someone else, please retry",
+		},
+		{
+			name: "DB error on update",
+			input: entity.UpdateAttendance{
+				AttendanceID: 4,
+				Version:      1,
+				CheckOutAt:   &now,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.UpdateAttendance) {
+				mock.ExpectBegin()
+				mock.ExpectExec(`UPDATE "attendances"`).
+					WithArgs(sqlmock.AnyArg(), input.AttendanceID, input.Version).
+					WillReturnError(errors.New("update failed"))
+				mock.ExpectRollback()
+			},
+			expectError: true,
+			errorText:   "failed to update attendance",
+		},
+	}
 
-// 			if tt.expectError {
-// 				assert.Error(t, err)
-// 			} else {
-// 				assert.NoError(t, err)
-// 			}
-// 		})
-// 	}
-// }
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, cleanup := pkg.SetupMockDB(t)
+			defer cleanup()
 
-// func TestUpdateAttendanceSpot(t *testing.T) {
-// 	tests := []struct {
-// 		name        string
-// 		input       entity.UpdateAttendanceSpot
-// 		expectError bool
-// 	}{
-// 		{
-// 			name: "Success by ID",
-// 			input: entity.UpdateAttendanceSpot{
-// 				ID:       1,
-// 				Occupied: pkg.BoolPtr(true),
-// 			},
-// 			expectError: false,
-// 		},
-// 		{
-// 			name: "Success by coordinates",
-// 			input: entity.UpdateAttendanceSpot{
-// 				Floor:    1,
-// 				Row:      2,
-// 				Col:      3,
-// 				Occupied: pkg.BoolPtr(false),
-// 			},
-// 			expectError: false,
-// 		},
-// 		{
-// 			name: "Missing identifier",
-// 			input: entity.UpdateAttendanceSpot{
-// 				Occupied: pkg.BoolPtr(true),
-// 			},
-// 			expectError: true,
-// 		},
-// 		{
-// 			name: "No update values",
-// 			input: entity.UpdateAttendanceSpot{
-// 				ID: 1,
-// 			},
-// 			expectError: true,
-// 		},
-// 		{
-// 			name: "Database error",
-// 			input: entity.UpdateAttendanceSpot{
-// 				ID:       99,
-// 				Occupied: pkg.BoolPtr(true),
-// 			},
-// 			expectError: true,
-// 		},
-// 	}
+			if tt.mockSetup != nil {
+				tt.mockSetup(mock, tt.input)
+			}
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			db, mock, cleanup := pkg.SetupMockDB(t)
-// 			defer cleanup()
+			a := attendance.InitAttendanceDomain(attendance.Option{
+				DB: db,
+			})
 
-// 			if !tt.expectError {
-// 				mock.ExpectBegin()
+			tx := db.Begin()
+			ctx := context.WithValue(context.Background(), pkg.TxCtxValue, tx)
 
-// 				mock.ExpectExec(`UPDATE "attendance_spots"`).
-// 					WillReturnResult(sqlmock.NewResult(1, 1))
+			err := a.UpdateAttendance(ctx, tt.input)
 
-// 				mock.ExpectCommit()
-// 			} else {
-// 				if tt.input.ID == 0 && (tt.input.Floor == 0 || tt.input.Row == 0 || tt.input.Col == 0) {
-// 					// No DB interaction if input is invalid
-// 				} else if tt.input.Occupied == nil {
-// 					// No DB interaction if no update values
-// 				} else {
-// 					mock.ExpectBegin()
-// 					mock.ExpectExec(`UPDATE "attendance_spots"`).
-// 						WillReturnError(errors.New("update failed"))
-// 					mock.ExpectRollback()
-// 				}
-// 			}
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorText != "" {
+					assert.Contains(t, err.Error(), tt.errorText)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-// 			d := attendance.InitAttendanceDomain(attendance.Option{DB: db})
-// 			err := d.UpdateAttendanceSpot(context.Background(), tt.input)
+func TestUpdateAttendancePeriod(t *testing.T) {
+	now := time.Now()
+	status := "closed"
 
-// 			if tt.expectError {
-// 				assert.Error(t, err)
-// 			} else {
-// 				assert.NoError(t, err)
-// 			}
-// 		})
-// 	}
-// }
+	tests := []struct {
+		name        string
+		input       entity.UpdateAttendancePeriod
+		mockSetup   func(mock sqlmock.Sqlmock, input entity.UpdateAttendancePeriod)
+		expectError bool
+		errorText   string
+	}{
+		{
+			name: "Success update attendance period",
+			input: entity.UpdateAttendancePeriod{
+				ID:        1,
+				Status:    &status,
+				StartDate: &now,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.UpdateAttendancePeriod) {
+				mock.ExpectBegin()
+				mock.ExpectExec(`UPDATE "attendance_periods"`).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit()
+			},
+			expectError: false,
+		},
+		{
+			name: "Missing attendance period ID",
+			input: entity.UpdateAttendancePeriod{
+				Status: &status,
+			},
+			mockSetup:   nil,
+			expectError: true,
+			errorText:   "attendance period ID is required",
+		},
+		{
+			name: "No update fields provided",
+			input: entity.UpdateAttendancePeriod{
+				ID: 2,
+			},
+			mockSetup:   nil,
+			expectError: true,
+			errorText:   "no updates provided",
+		},
+		{
+			name: "DB error on update",
+			input: entity.UpdateAttendancePeriod{
+				ID:      3,
+				EndDate: &now,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.UpdateAttendancePeriod) {
+				mock.ExpectBegin()
+				mock.ExpectExec(`UPDATE "attendance_periods"`).
+					WillReturnError(errors.New("db error"))
+				mock.ExpectRollback()
+			},
+			expectError: true,
+			errorText:   "failed to update attendance period",
+		},
+	}
 
-// func TestUpdateVehicle(t *testing.T) {
-// 	now := time.Now()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, cleanup := pkg.SetupMockDB(t)
+			defer cleanup()
 
-// 	tests := []struct {
-// 		name        string
-// 		input       entity.UpdateVehicle
-// 		expectError bool
-// 		mockQuery   bool
-// 	}{
-// 		{
-// 			name: "Success case",
-// 			input: entity.UpdateVehicle{
-// 				ID:         1,
-// 				UnparkedAt: &now,
-// 			},
-// 			expectError: false,
-// 			mockQuery:   true,
-// 		},
-// 		{
-// 			name: "Missing ID",
-// 			input: entity.UpdateVehicle{
-// 				ID:         0,
-// 				UnparkedAt: &now,
-// 			},
-// 			expectError: true,
-// 			mockQuery:   false,
-// 		},
-// 		{
-// 			name: "No update fields",
-// 			input: entity.UpdateVehicle{
-// 				ID: 2,
-// 			},
-// 			expectError: true,
-// 			mockQuery:   false,
-// 		},
-// 		{
-// 			name: "Database error",
-// 			input: entity.UpdateVehicle{
-// 				ID:         3,
-// 				UnparkedAt: &now,
-// 			},
-// 			expectError: true,
-// 			mockQuery:   true,
-// 		},
-// 	}
+			if tt.mockSetup != nil {
+				tt.mockSetup(mock, tt.input)
+			}
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			db, mock, cleanup := pkg.SetupMockDB(t)
-// 			defer cleanup()
+			a := attendance.InitAttendanceDomain(attendance.Option{DB: db})
+			tx := db.Begin()
+			ctx := context.WithValue(context.Background(), pkg.TxCtxValue, tx)
 
-// 			if tt.mockQuery {
-// 				mock.ExpectBegin()
+			err := a.UpdateAttendancePeriod(ctx, tt.input)
 
-// 				exec := mock.ExpectExec(`UPDATE "vehicles"`).
-// 					WithArgs(tt.input.UnparkedAt, tt.input.ID)
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorText != "" {
+					assert.Contains(t, err.Error(), tt.errorText)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-// 				if tt.expectError {
-// 					exec.WillReturnError(errors.New("update failed"))
-// 					mock.ExpectRollback()
-// 				} else {
-// 					exec.WillReturnResult(sqlmock.NewResult(1, 1))
-// 					mock.ExpectCommit()
-// 				}
-// 			}
+func TestCreateOvertime(t *testing.T) {
+	now := time.Now()
 
-// 			d := attendance.InitAttendanceDomain(attendance.Option{DB: db})
-// 			err := d.UpdateVehicle(context.Background(), tt.input)
+	tests := []struct {
+		name        string
+		input       entity.CreateOvertimeData
+		mockSetup   func(mock sqlmock.Sqlmock, input entity.CreateOvertimeData)
+		expectError bool
+		errorText   string
+	}{
+		{
+			name: "Success create overtime",
+			input: entity.CreateOvertimeData{
+				UserID:             1,
+				Date:               now,
+				Hours:              2,
+				Description:        "Lembur proyek A",
+				AttendancePeriodID: 10,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.CreateOvertimeData) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(`INSERT INTO "overtimes"`).
+					WithArgs(
+						input.UserID,
+						input.Date,
+						input.Hours,
+						input.AttendancePeriodID,
+						input.Description,
+						sqlmock.AnyArg(), // CreatedAt (now)
+					).
+					WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+				mock.ExpectCommit()
+			},
+			expectError: false,
+		},
+		{
+			name: "DB error on insert",
+			input: entity.CreateOvertimeData{
+				UserID:             2,
+				Date:               now,
+				Hours:              3,
+				Description:        "Lembur B",
+				AttendancePeriodID: 20,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.CreateOvertimeData) {
+				mock.ExpectBegin()
+				mock.ExpectExec(`INSERT INTO "overtimes"`).
+					WithArgs(
+						input.UserID,
+						input.Date,
+						input.Hours,
+						input.Description,
+						input.AttendancePeriodID,
+						sqlmock.AnyArg(),
+					).
+					WillReturnError(errors.New("insert failed"))
+				mock.ExpectRollback()
+			},
+			expectError: true,
+			errorText:   "failed to submit overtime",
+		},
+	}
 
-// 			if tt.expectError {
-// 				assert.Error(t, err)
-// 			} else {
-// 				assert.NoError(t, err)
-// 			}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, cleanup := pkg.SetupMockDB(t)
+			defer cleanup()
 
-// 		})
-// 	}
-// }
+			if tt.mockSetup != nil {
+				tt.mockSetup(mock, tt.input)
+			}
 
-// func TestGetVehicle(t *testing.T) {
-// 	now := time.Now()
+			a := attendance.InitAttendanceDomain(attendance.Option{DB: db})
+			tx := db.Begin()
+			ctx := context.WithValue(context.Background(), pkg.TxCtxValue, tx)
 
-// 	tests := []struct {
-// 		name         string
-// 		input        entity.SearchVehicle
-// 		expectError  bool
-// 		mockResponse *entity.Vehicle
-// 		mockError    error
-// 	}{
-// 		{
-// 			name: "Success",
-// 			input: entity.SearchVehicle{
-// 				VehicleNumber: "B123XYZ",
-// 			},
-// 			expectError: false,
-// 			mockResponse: &entity.Vehicle{
-// 				ID:            1,
-// 				VehicleNumber: "B123XYZ",
-// 				VehicleType:   "car",
-// 				SpotID:        "1-2-3",
-// 				ParkedAt:      now,
-// 			},
-// 		},
-// 		{
-// 			name: "DB Error",
-// 			input: entity.SearchVehicle{
-// 				VehicleNumber: "ERR123",
-// 			},
-// 			expectError:  true,
-// 			mockResponse: nil,
-// 			mockError:    errors.New("db error"),
-// 		},
-// 	}
+			err := a.CreateOvertime(ctx, tt.input)
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			db, mock, cleanup := pkg.SetupMockDB(t)
-// 			defer cleanup()
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorText != "" {
+					assert.Contains(t, err.Error(), tt.errorText)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-// 			query := `SELECT * FROM "vehicles" WHERE vehicle_number = $1 ORDER BY id DESC,"vehicles"."id" LIMIT $2`
-// 			if tt.mockResponse != nil {
-// 				rows := sqlmock.NewRows([]string{"id", "vehicle_number", "vehicle_type", "spot_id", "parked_at"}).
-// 					AddRow(tt.mockResponse.ID, tt.mockResponse.VehicleNumber, tt.mockResponse.VehicleType, tt.mockResponse.SpotID, tt.mockResponse.ParkedAt)
-// 				mock.ExpectQuery(regexp.QuoteMeta(query)).
-// 					WithArgs(tt.input.VehicleNumber, 1).
-// 					WillReturnRows(rows)
-// 			} else {
-// 				mock.ExpectQuery(regexp.QuoteMeta(query)).
-// 					WithArgs(tt.input.VehicleNumber, 1).
-// 					WillReturnError(tt.mockError)
-// 			}
+func TestCreateAttendancePeriod(t *testing.T) {
+	now := time.Now()
 
-// 			d := attendance.InitAttendanceDomain(attendance.Option{DB: db})
-// 			_, err := d.GetVehicle(context.Background(), tt.input)
+	tests := []struct {
+		name        string
+		input       entity.AttendancePeriod
+		mockSetup   func(mock sqlmock.Sqlmock, input entity.AttendancePeriod)
+		expectError bool
+		errorText   string
+	}{
+		{
+			name: "Success create attendance period",
+			input: entity.AttendancePeriod{
+				StartDate: now,
+				EndDate:   now.AddDate(0, 0, 30),
+				Status:    "open",
+				CreatedAt: now,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.AttendancePeriod) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(`INSERT INTO "attendance_periods"`).
+					WithArgs(
+						input.StartDate,
+						input.EndDate,
+						input.Status,
+						sqlmock.AnyArg(),
+						sqlmock.AnyArg(),
+					).
+					WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+				mock.ExpectCommit()
+			},
+			expectError: false,
+		},
+		{
+			name: "DB error on insert",
+			input: entity.AttendancePeriod{
+				StartDate: now,
+				EndDate:   now.AddDate(0, 0, 28),
+				Status:    "open",
+				CreatedAt: now,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock, input entity.AttendancePeriod) {
+				mock.ExpectBegin()
+				mock.ExpectExec(`INSERT INTO "attendance_periods"`).
+					WithArgs(
+						input.StartDate,
+						input.EndDate,
+						input.Status,
+						sqlmock.AnyArg(),
+						input.CreatedAt,
+						sqlmock.AnyArg(),
+					).
+					WillReturnError(errors.New("insert error"))
+				mock.ExpectRollback()
+			},
+			expectError: true,
+			errorText:   "failed to create attendance period",
+		},
+	}
 
-// 			if tt.expectError {
-// 				assert.Error(t, err)
-// 			} else {
-// 				assert.NoError(t, err)
-// 			}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, cleanup := pkg.SetupMockDB(t)
+			defer cleanup()
 
-// 			assert.NoError(t, mock.ExpectationsWereMet())
-// 		})
-// 	}
-// }
+			if tt.mockSetup != nil {
+				tt.mockSetup(mock, tt.input)
+			}
+
+			a := attendance.InitAttendanceDomain(attendance.Option{DB: db})
+			tx := db.Begin()
+			ctx := context.WithValue(context.Background(), pkg.TxCtxValue, tx)
+
+			err := a.CreateAttendancePeriod(ctx, tt.input)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorText != "" {
+					assert.Contains(t, err.Error(), tt.errorText)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetOvertime(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name         string
+		filter       entity.GetOvertimeFilter
+		mockQuery    string
+		mockRows     *sqlmock.Rows
+		expectError  bool
+		expectedData []entity.Overtime
+	}{
+		{
+			name: "Success with UserID and AttendancePeriodID",
+			filter: entity.GetOvertimeFilter{
+				UserID:             1,
+				AttendancePeriodID: 2,
+			},
+			mockQuery: `SELECT \* FROM "overtimes"`,
+			mockRows: sqlmock.NewRows([]string{"id", "user_id", "date", "hours", "description", "attendance_period_id", "created_at"}).
+				AddRow(1, 1, now, 2.5, "Extra work", 2, now),
+			expectError: false,
+			expectedData: []entity.Overtime{
+				{
+					ID:                 1,
+					UserID:             1,
+					Date:               now,
+					Hours:              2.5,
+					Description:        "Extra work",
+					AttendancePeriodID: 2,
+					CreatedAt:          now,
+				},
+			},
+		},
+		{
+			name: "No results found",
+			filter: entity.GetOvertimeFilter{
+				UserID: 999,
+			},
+			mockQuery:    `SELECT \* FROM "overtimes"`,
+			mockRows:     sqlmock.NewRows([]string{"id", "user_id", "date", "hours", "description", "attendance_period_id", "created_at"}),
+			expectError:  false,
+			expectedData: []entity.Overtime{},
+		},
+		{
+			name: "DB error",
+			filter: entity.GetOvertimeFilter{
+				UserID: 1,
+			},
+			mockQuery:   `SELECT \* FROM "overtimes"`,
+			mockRows:    nil,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, cleanup := pkg.SetupMockDB(t)
+			defer cleanup()
+
+			query := mock.ExpectQuery(tt.mockQuery)
+
+			if tt.mockRows != nil {
+				query.WillReturnRows(tt.mockRows)
+			} else {
+				query.WillReturnError(errors.New("db error"))
+			}
+
+			a := attendance.InitAttendanceDomain(attendance.Option{DB: db})
+
+			result, err := a.GetOvertime(context.Background(), tt.filter)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedData, result)
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestGetAttendance(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name         string
+		filter       entity.GetAttendance
+		mockQuery    string
+		mockRows     *sqlmock.Rows
+		expectError  bool
+		expectedData []entity.Attendance
+	}{
+		{
+			name: "Success with all filters",
+			filter: entity.GetAttendance{
+				UserID:             1,
+				Date:               now,
+				AttendancePeriodID: 2,
+			},
+			mockQuery: `SELECT \* FROM "attendances"`,
+			mockRows: sqlmock.NewRows([]string{
+				"id", "user_id", "checked_in_at", "checked_out_at", "attendance_period_id", "created_at",
+			}).AddRow(
+				1, 1, now, now.Add(8*time.Hour), 2, now,
+			),
+			expectError: false,
+			expectedData: []entity.Attendance{
+				{
+					ID:                 1,
+					UserID:             1,
+					CheckedInAt:        pkg.TimePtr(now),
+					CheckedOutAt:       pkg.TimePtr(now.Add(8 * time.Hour)),
+					AttendancePeriodID: 2,
+					CreatedAt:          now,
+				},
+			},
+		},
+		{
+			name: "No attendance found",
+			filter: entity.GetAttendance{
+				UserID: 1234,
+			},
+			mockQuery: `SELECT \* FROM "attendances"`,
+			mockRows: sqlmock.NewRows([]string{
+				"id", "user_id", "checked_in_at", "checked_out_at", "attendance_period_id", "created_at",
+			}),
+			expectError:  false,
+			expectedData: []entity.Attendance{},
+		},
+		{
+			name: "Database error",
+			filter: entity.GetAttendance{
+				UserID: 1,
+			},
+			mockQuery:   `SELECT \* FROM "attendances"`,
+			mockRows:    nil,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, cleanup := pkg.SetupMockDB(t)
+			defer cleanup()
+
+			query := mock.ExpectQuery(tt.mockQuery)
+
+			if tt.mockRows != nil {
+				query.WillReturnRows(tt.mockRows)
+			} else {
+				query.WillReturnError(errors.New("db error"))
+			}
+
+			a := attendance.InitAttendanceDomain(attendance.Option{DB: db})
+			result, err := a.GetAttendance(context.Background(), tt.filter)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedData, result)
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestGetAttendancePeriods(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name         string
+		filter       entity.GetAttendancePeriodFilter
+		mockQuery    string
+		mockRows     *sqlmock.Rows
+		expectError  bool
+		expectedData []entity.AttendancePeriod
+	}{
+		{
+			name: "Success with Status and UserID filters",
+			filter: entity.GetAttendancePeriodFilter{
+				Status: "approved",
+				UserID: "user-123",
+			},
+			mockQuery: `SELECT \* FROM "attendance_periods"`,
+			mockRows: sqlmock.NewRows([]string{
+				"id", "status", "user_id", "start_date", "end_date", "created_at",
+			}).AddRow(
+				1, "approved", "user-123", now.AddDate(0, 0, -7), now, now,
+			),
+			expectError: false,
+			expectedData: []entity.AttendancePeriod{
+				{
+					ID:        uint(1),
+					Status:    "approved",
+					StartDate: now.AddDate(0, 0, -7),
+					EndDate:   now,
+					CreatedAt: now,
+				},
+			},
+		},
+		{
+			name: "No records match",
+			filter: entity.GetAttendancePeriodFilter{
+				Status: "rejected",
+			},
+			mockQuery:    `SELECT \* FROM "attendance_periods"`,
+			mockRows:     sqlmock.NewRows([]string{"id", "status", "user_id", "start_date", "end_date", "created_at"}),
+			expectError:  false,
+			expectedData: []entity.AttendancePeriod{},
+		},
+		{
+			name: "Database error",
+			filter: entity.GetAttendancePeriodFilter{
+				ID: "error-case",
+			},
+			mockQuery:   `SELECT \* FROM "attendance_periods"`,
+			mockRows:    nil,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, cleanup := pkg.SetupMockDB(t)
+			defer cleanup()
+
+			query := mock.ExpectQuery(tt.mockQuery)
+
+			if tt.mockRows != nil {
+				query.WillReturnRows(tt.mockRows)
+			} else {
+				query.WillReturnError(errors.New("db error"))
+			}
+
+			a := attendance.InitAttendanceDomain(attendance.Option{DB: db})
+			result, err := a.GetAttendancePeriods(context.Background(), tt.filter)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedData, result)
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}

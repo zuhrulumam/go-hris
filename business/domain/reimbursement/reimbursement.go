@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-//go:generate mockgen -source=business/domain/reimbursement/reimbursement.go -destination=mocks/mock_reimbursement.go -package=mocks
+//go:generate mockgen -source=business/domain/reimbursement/reimbursement.go -destination=mocks/domain/reimbursement/mock_reimbursement.go -package=mocks
 type DomainItf interface {
 	// submit
 	SubmitReimbursement(ctx context.Context, data entity.SubmitReimbursementData) error

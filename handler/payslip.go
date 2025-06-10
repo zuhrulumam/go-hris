@@ -10,6 +10,8 @@ import (
 	"github.com/zuhrulumam/go-hris/business/entity"
 	"github.com/zuhrulumam/go-hris/pkg"
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 // GetPayslip godoc
@@ -35,6 +37,11 @@ func (e *rest) GetPayslip(c *gin.Context) {
 		return
 	}
 
+	if userID == nil {
+		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "missing user context"))
+		return
+	}
+
 	periodIDStr := c.Query("period_id")
 	if periodIDStr == "" {
 		e.compileError(c, x.NewWithCode(http.StatusBadRequest, "missing period_id"))
@@ -48,7 +55,7 @@ func (e *rest) GetPayslip(c *gin.Context) {
 	}
 
 	payslip, _, _, err := e.uc.Payslip.GetPayslip(ctx, entity.GetPayslipRequest{
-		UserID:             userID.(*uint),
+		UserID:             pkg.UintPtr(userID.(uint)),
 		AttendancePeriodID: pkg.UintPtr(uint(periodID)),
 	})
 	if err != nil {
@@ -56,7 +63,21 @@ func (e *rest) GetPayslip(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, payslip[0])
+	pay := payslip[0]
+	p := message.NewPrinter(language.Indonesian)
+
+	c.JSON(http.StatusOK, PayslipDataResp{
+		AttendancePeriodID: pay.AttendancePeriodID,
+		BaseSalary:         p.Sprintf("Rp %d", int(pay.BaseSalary)),
+		WorkingDays:        pay.WorkingDays,
+		AttendedDays:       pay.AttendedDays,
+		AttendanceAmount:   p.Sprintf("Rp %d", int(pay.AttendanceAmount)),
+		OvertimeHours:      pay.OvertimeHours,
+		OvertimePay:        p.Sprintf("Rp %d", int(pay.OvertimePay)),
+		ReimbursementTotal: p.Sprintf("Rp %d", int(pay.ReimbursementTotal)),
+		TotalPay:           p.Sprintf("Rp %d", int(pay.TotalPay)),
+		CreatedAt:          pay.CreatedAt,
+	})
 }
 
 // CreatePayroll godoc
