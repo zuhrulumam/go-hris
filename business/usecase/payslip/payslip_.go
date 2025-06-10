@@ -8,6 +8,7 @@ import (
 	"github.com/zuhrulumam/go-hris/business/entity"
 	"github.com/zuhrulumam/go-hris/pkg"
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
+	"github.com/zuhrulumam/go-hris/task"
 )
 
 func (p *payslip) GetPayslip(ctx context.Context, userID, periodID uint) (*entity.Payslip, error) {
@@ -93,8 +94,36 @@ func (p *payslip) GetPayslip(ctx context.Context, userID, periodID uint) (*entit
 }
 
 func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
+	// Get All Users
+	users, err := p.UserDom.GetUsers(ctx, entity.GetUserFilter{
+		Role: string(entity.RoleEmployee),
+	})
+	if err != nil {
+		return err
+	}
+
+	// queue task to asynq
+	for _, user := range users {
+		task, err := task.NewCreatePayrollTask(periodID, user.ID)
+		if err != nil {
+			return err
+		}
+
+		_, err = p.AsynqClient.Enqueue(task)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *payslip) CreatePayslipForUser(ctx context.Context, userID, periodID uint) error {
 	return p.TransactionDom.RunInTx(ctx, func(newCtx context.Context) error {
-		// 1. Check if payroll already exists
+
+		var (
+			salary float64
+		)
+		// Check if payroll already exists
 		exists, err := p.PayslipDom.IsPayrollExists(newCtx, periodID)
 		if err != nil {
 			return err
@@ -103,15 +132,23 @@ func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
 			return x.NewWithCode(http.StatusBadRequest, "payroll already run for this period")
 		}
 
-		// 2. Get all users (can be filtered by department, role, etc. if needed)
-		users, err := p.UserDom.GetUsers(newCtx, entity.GetUserFilter{})
+		user, err := p.UserDom.GetUsers(newCtx, entity.GetUserFilter{
+			ID: userID,
+		})
 		if err != nil {
-			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch users")
+			return err
 		}
 
-		// 3. Get all attendance, overtime, and reimbursement data for the period
+		if len(user) < 1 {
+			return x.NewWithCode(http.StatusNotFound, "user not found")
+		}
+
+		salary = user[0].Salary
+
+		// Get all attendance, overtime, and reimbursement data for the period
 		attendances, err := p.AttendanceDom.GetAttendance(newCtx, entity.GetAttendance{
 			AttendancePeriodID: periodID,
+			UserID:             userID,
 		})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch attendance data")
@@ -119,6 +156,7 @@ func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
 
 		overtimes, err := p.AttendanceDom.GetOvertime(newCtx, entity.GetOvertimeFilter{
 			AttendancePeriodID: periodID,
+			UserID:             userID,
 		})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch overtime data")
@@ -126,57 +164,51 @@ func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
 
 		reimbursements, err := p.ReimbursementDom.GetReimbursements(newCtx, entity.GetReimbursementFilter{
 			AttendancePeriodID: periodID,
+			UserID:             userID,
 		})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch reimbursement data")
 		}
 
-		// 4. Map data for faster access
-		attendanceMap := groupAttendanceByUser(attendances)
-		overtimeMap := groupOvertimeByUser(overtimes)
-		reimbursementMap := groupReimbursementsByUser(reimbursements)
+		// Create payslips
+		var payslip entity.Payslip
+		userAttendances := attendances
+		userOvertimes := overtimes
+		userReimbursements := reimbursements
 
-		// 5. Create payslips
-		var payslips []entity.Payslip
-		for _, user := range users {
-			userAttendances := attendanceMap[user.ID]
-			userOvertimes := overtimeMap[user.ID]
-			userReimbursements := reimbursementMap[user.ID]
+		attendedDays := len(userAttendances)
+		workingDays := 22 // default value, or fetch from period
 
-			attendedDays := len(userAttendances)
-			workingDays := 22 // default value, or fetch from period
+		overtimeHours := float64(0)
+		for _, ot := range userOvertimes {
+			overtimeHours += ot.Hours
+		}
 
-			overtimeHours := float64(0)
-			for _, ot := range userOvertimes {
-				overtimeHours += ot.Hours
-			}
+		reimbursementTotal := float64(0)
+		for _, rb := range userReimbursements {
+			reimbursementTotal += rb.Amount
+		}
 
-			reimbursementTotal := float64(0)
-			for _, rb := range userReimbursements {
-				reimbursementTotal += rb.Amount
-			}
+		attendanceAmount := (float64(attendedDays) / float64(workingDays)) * salary
+		overtimeAmount := overtimeHours * (salary / float64(workingDays)) * 1.5
+		totalPay := attendanceAmount + overtimeAmount + reimbursementTotal
 
-			attendanceAmount := (float64(attendedDays) / float64(workingDays)) * user.Salary
-			overtimeAmount := overtimeHours * (user.Salary / float64(workingDays)) * 1.5
-			totalPay := attendanceAmount + overtimeAmount + reimbursementTotal
-
-			payslips = append(payslips, entity.Payslip{
-				UserID:             user.ID,
-				AttendancePeriodID: periodID,
-				BaseSalary:         user.Salary,
-				WorkingDays:        workingDays,
-				AttendedDays:       attendedDays,
-				AttendanceAmount:   attendanceAmount,
-				OvertimeHours:      overtimeHours,
-				OvertimePay:        overtimeAmount,
-				ReimbursementTotal: reimbursementTotal,
-				TotalPay:           totalPay,
-				CreatedAt:          time.Now(),
-			})
+		payslip = entity.Payslip{
+			UserID:             userID,
+			AttendancePeriodID: periodID,
+			BaseSalary:         salary,
+			WorkingDays:        workingDays,
+			AttendedDays:       attendedDays,
+			AttendanceAmount:   attendanceAmount,
+			OvertimeHours:      overtimeHours,
+			OvertimePay:        overtimeAmount,
+			ReimbursementTotal: reimbursementTotal,
+			TotalPay:           totalPay,
+			CreatedAt:          time.Now(),
 		}
 
 		// 6. Save all payslips
-		err = p.PayslipDom.CreatePayslip(newCtx, payslips)
+		err = p.PayslipDom.CreatePayslip(newCtx, []entity.Payslip{payslip})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to save payslips")
 		}
@@ -192,28 +224,4 @@ func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
 
 		return nil
 	})
-}
-
-func groupAttendanceByUser(data []entity.Attendance) map[uint][]entity.Attendance {
-	result := make(map[uint][]entity.Attendance)
-	for _, a := range data {
-		result[a.UserID] = append(result[a.UserID], a)
-	}
-	return result
-}
-
-func groupOvertimeByUser(data []entity.Overtime) map[uint][]entity.Overtime {
-	result := make(map[uint][]entity.Overtime)
-	for _, o := range data {
-		result[o.UserID] = append(result[o.UserID], o)
-	}
-	return result
-}
-
-func groupReimbursementsByUser(data []entity.Reimbursement) map[uint][]entity.Reimbursement {
-	result := make(map[uint][]entity.Reimbursement)
-	for _, r := range data {
-		result[r.UserID] = append(result[r.UserID], r)
-	}
-	return result
 }

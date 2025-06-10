@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"github.com/hibiken/asynq"
 	"github.com/zuhrulumam/go-hris/business/domain"
 	"github.com/zuhrulumam/go-hris/business/usecase/attendance"
 	"github.com/zuhrulumam/go-hris/business/usecase/payslip"
@@ -16,6 +17,7 @@ type Usecase struct {
 }
 
 type Option struct {
+	AsynqClient *asynq.Client
 }
 
 func Init(dom *domain.Domain, opt Option) *Usecase {
@@ -35,6 +37,7 @@ func Init(dom *domain.Domain, opt Option) *Usecase {
 			AttendanceDom:    dom.Attendance,
 			ReimbursementDom: dom.Reimbursement,
 			UserDom:          dom.User,
+			AsynqClient:      opt.AsynqClient,
 		}),
 		User: user.InitUserUsecase(user.Option{
 			UserDom:        dom.User,

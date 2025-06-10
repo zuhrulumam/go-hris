@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hibiken/asynq"
 	"github.com/spf13/cobra"
 	"github.com/zuhrulumam/go-hris/business/domain"
 	"github.com/zuhrulumam/go-hris/business/usecase"
@@ -49,8 +51,13 @@ func run() {
 		DB: db,
 	})
 
+	// init asynq client
+	aClient := NewAsynqClient()
+
 	// init usecase
-	uc = usecase.Init(dom, usecase.Option{})
+	uc = usecase.Init(dom, usecase.Option{
+		AsynqClient: aClient,
+	})
 
 	// init rest
 	handler.Init(handler.Option{
@@ -60,6 +67,12 @@ func run() {
 	})
 
 	log.Println(app.Run(":8080"))
+}
+
+func NewAsynqClient() *asynq.Client {
+	return asynq.NewClient(asynq.RedisClientOpt{
+		Addr: os.Getenv("REDIS_HOST"),
+	})
 }
 
 // TODO: Gracefull shutdown

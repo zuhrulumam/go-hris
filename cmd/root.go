@@ -20,6 +20,7 @@ func init() {
 	rootCmd.AddCommand(serverCommand)
 	rootCmd.AddCommand(seedCommand)
 	rootCmd.AddCommand(cleanerCommand)
+	rootCmd.AddCommand(workerCommand)
 }
 
 func Execute() {

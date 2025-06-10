@@ -9,7 +9,11 @@ seed:
 start:
 	go run main.go start
 
-all: seed start
+# Run worker
+start-worker:
+	go run main.go start-worker
+
+all: seed start start-worker
 
 test:
 	go test -v ./...

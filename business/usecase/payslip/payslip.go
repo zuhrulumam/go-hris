@@ -3,6 +3,7 @@ package payslip
 import (
 	"context"
 
+	"github.com/hibiken/asynq"
 	attendanceDom "github.com/zuhrulumam/go-hris/business/domain/attendance"
 	payslipDom "github.com/zuhrulumam/go-hris/business/domain/payslip"
 	reimbursementDom "github.com/zuhrulumam/go-hris/business/domain/reimbursement"
@@ -14,6 +15,8 @@ import (
 type UsecaseItf interface {
 	CreatePayroll(ctx context.Context, periodID uint) error
 	GetPayslip(ctx context.Context, userID, periodID uint) (*entity.Payslip, error)
+
+	CreatePayslipForUser(ctx context.Context, userID, periodID uint) error
 }
 
 type Option struct {
@@ -22,6 +25,7 @@ type Option struct {
 	AttendanceDom    attendanceDom.DomainItf
 	ReimbursementDom reimbursementDom.DomainItf
 	UserDom          userDom.DomainItf
+	AsynqClient      *asynq.Client
 }
 
 type payslip struct {
@@ -30,6 +34,7 @@ type payslip struct {
 	AttendanceDom    attendanceDom.DomainItf
 	ReimbursementDom reimbursementDom.DomainItf
 	UserDom          userDom.DomainItf
+	AsynqClient      *asynq.Client
 }
 
 func InitPayslipUsecase(opt Option) UsecaseItf {
@@ -39,6 +44,7 @@ func InitPayslipUsecase(opt Option) UsecaseItf {
 		AttendanceDom:    opt.AttendanceDom,
 		ReimbursementDom: opt.ReimbursementDom,
 		UserDom:          opt.UserDom,
+		AsynqClient:      opt.AsynqClient,
 	}
 
 	return p

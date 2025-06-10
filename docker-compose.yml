@@ -4,13 +4,10 @@ services:
   traefik:
     image: traefik:v2.3
     ports:
-      # Exposes port 80 for incomming web requests
       - "80:80"
       - "443:443"
-      # The Web UI port http://0.0.0.0:8080 (enabled by --api.insecure=true)
       - "8080:8080"
     volumes:
-      # So that Traefik can listen to the Docker events
       - /var/run/docker.sock:/var/run/docker.sock
       - ./traefik.yml:/etc/traefik/traefik.yml
 
@@ -22,14 +19,30 @@ services:
       - DB_PASSWORD=yourpassword
       - DB_NAME=yourdb
       - DB_PORT=5432
+      - REDIS_HOST=redis:6379
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`parking.localhost`)"
+      - "traefik.http.routers.app.rule=Host(`hris.localhost`)"
       - "traefik.http.services.app.loadbalancer.server.port=8080"
-      - "traefik.http.routers.freshsvc.entrypoints=web"
+      - "traefik.http.routers.app.entrypoints=web"
     depends_on:
       - postgres
+      - redis
     command: ["start"]
+
+  worker:
+    build: .
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=youruser
+      - DB_PASSWORD=yourpassword
+      - DB_NAME=yourdb
+      - DB_PORT=5432
+      - REDIS_HOST=redis:6379
+    depends_on:
+      - postgres
+      - redis
+    command: ["worker"]
 
   seed:
     build: .
@@ -41,17 +54,24 @@ services:
       - DB_PASSWORD=yourpassword
       - DB_NAME=yourdb
       - DB_PORT=5432
-    command: ["seed", "3", "10", "10"]
-    restart: "no" # optional: don't restart after seeding
+    command: ["seed"]
+    restart: "no"
 
-  postgres:
-    image: postgres:15
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  asynqmon:
+    image: hibiken/asynqmon
     environment:
-      - POSTGRES_USER=youruser
-      - POSTGRES_PASSWORD=yourpassword
-      - POSTGRES_DB=yourdb
-#     volumes:
-#       - pgdata:/var/lib/postgresql/data
-
-# volumes:
-#   pgdata:
+      - REDIS_ADDR=redis:6379
+    ports:
+      - "8081:8080"
+    depends_on:
+      - redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.asynqmon.rule=Host(`asynqmon.localhost`)"
+      - "traefik.http.services.asynqmon.loadbalancer.server.port=8080"
+      - "traefik.http.routers.asynqmon.entrypoints=web"
