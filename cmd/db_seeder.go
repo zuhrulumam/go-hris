@@ -101,15 +101,15 @@ type Payslip struct {
 }
 
 type PayrollJob struct {
-	ID        uint
-	PeriodID  uint
-	UserID    uint
-	Status    string // pending, processing, done, failed
-	Attempts  int
-	LastError *string
-	NextRunAt time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                 uint
+	AttendancePeriodID uint
+	UserID             uint
+	Status             string // pending, processing, done, failed
+	Attempts           int
+	LastError          *string
+	NextRunAt          time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 var seedCommand = &cobra.Command{

@@ -70,10 +70,11 @@ func (p *payslip) GetPayrollSummary(ctx context.Context, req entity.GetPayrollSu
 	var results []entity.PayrollSummaryItem
 	err := db.WithContext(ctx).
 		Table("payslips").
-		Select("payslips.user_id, users.full_name, SUM(payslips.total_pay) AS total_pay").
+		Select("payslips.user_id, users.username, SUM(payslips.total_pay) AS total_pay").
 		Joins("JOIN users ON payslips.user_id = users.id").
 		Where("payslips.attendance_period_id IN ?", req.AttendancePeriodIDs).
-		Group("payslips.user_id, users.full_name").
+		Group("payslips.user_id, users.username").
+		Order("username ASC").
 		Scan(&results).Error
 
 	if err != nil {
@@ -139,12 +140,11 @@ func (p *payslip) UpdatePayslipJob(ctx context.Context, data entity.UpdatePaysli
 	if data.Status != "" {
 		updates["status"] = data.Status
 	}
+
 	if data.StartedAt != nil {
 		updates["started_at"] = data.StartedAt
 	}
-	if data.CompletedAt != nil {
-		updates["completed_at"] = data.CompletedAt
-	}
+
 	if data.FailedReason != nil {
 		updates["failed_reason"] = data.FailedReason
 	}
@@ -153,12 +153,9 @@ func (p *payslip) UpdatePayslipJob(ctx context.Context, data entity.UpdatePaysli
 		return x.NewWithCode(http.StatusBadRequest, "no updates provided")
 	}
 
-	// Optimistic concurrency control: increment version
-	updates["version"] = data.Version + 1
-
 	tx := db.WithContext(ctx).
 		Model(&entity.PayrollJob{}).
-		Where("id = ? AND version = ?", data.ID, data.Version).
+		Where("id = ?", data.ID).
 		Updates(updates)
 
 	if tx.RowsAffected == 0 {

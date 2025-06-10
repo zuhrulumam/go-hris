@@ -85,7 +85,7 @@ func processPendingPayrollJobs() error {
 
 	// Enqueue outside transaction
 	for _, job := range jobs {
-		t, err := task.NewCreatePayrollTask(job.PeriodID, job.UserID, job.ID)
+		t, err := task.NewCreatePayrollTask(job.AttendancePeriodID, job.UserID, job.ID)
 		if err != nil {
 			log.Printf("failed to create task for job %d: %v", job.ID, err)
 			continue
@@ -96,7 +96,7 @@ func processPendingPayrollJobs() error {
 			continue
 		}
 
-		log.Printf("Enqueued payroll job: ID=%d UserID=%d PeriodID=%d", job.ID, job.UserID, job.PeriodID)
+		log.Printf("Enqueued payroll job: ID=%d UserID=%d PeriodID=%d", job.ID, job.UserID, job.AttendancePeriodID)
 	}
 
 	return nil

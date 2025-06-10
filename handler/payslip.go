@@ -113,6 +113,17 @@ func (e *rest) CreatePayroll(c *gin.Context) {
 func (e *rest) GetPayrollSummary(c *gin.Context) {
 	ctx := c.Request.Context()
 
+	isAdmin, ok := c.Get("isAdmin")
+	if !ok {
+		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "missing user context"))
+		return
+	}
+
+	if !isAdmin.(bool) {
+		e.compileError(c, x.NewWithCode(http.StatusUnauthorized, "only admin"))
+		return
+	}
+
 	periodIDsParam := c.Query("period_ids")
 	if periodIDsParam == "" {
 		e.compileError(c, x.NewWithCode(http.StatusBadRequest, "missing period_ids"))

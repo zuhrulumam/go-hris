@@ -13,6 +13,10 @@ start:
 start-worker:
 	go run main.go start-worker
 
+# Run scheduler
+start-scheduler:
+	go run main.go start-scheduler
+
 all: seed start start-worker
 
 test:

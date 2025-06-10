@@ -11,6 +11,7 @@ type Attendance struct {
 	CheckedOutAt       *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          *time.Time
+	Version            uint
 }
 
 type CreateAttendance struct {

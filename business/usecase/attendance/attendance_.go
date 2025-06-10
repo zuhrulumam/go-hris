@@ -58,6 +58,7 @@ func (p *attendance) CheckOut(ctx context.Context, data entity.CheckOut) error {
 		err = p.AttendanceDom.UpdateAttendance(newCtx, entity.UpdateAttendance{
 			AttendanceID: att[0].ID,
 			CheckOutAt:   pkg.TimePtr(data.Date),
+			Version:      att[0].Version,
 		})
 		if err != nil {
 			return err

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/zuhrulumam/go-hris/business/entity"
-	"github.com/zuhrulumam/go-hris/pkg"
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
 	"github.com/zuhrulumam/go-hris/task"
 )
@@ -38,13 +37,14 @@ func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
 
 		// queue task to asynq
 		for _, user := range users {
-			// Step 1: Insert PayrollJob
+			// Insert PayrollJob
 			job := entity.PayrollJob{
-				PeriodID:  periodID,
-				UserID:    user.ID,
-				Status:    "pending",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+				AttendancePeriodID: periodID,
+				UserID:             user.ID,
+				Status:             "pending",
+				NextRunAt:          time.Now(),
+				CreatedAt:          time.Now(),
+				UpdatedAt:          time.Now(),
 			}
 
 			j, err := p.PayslipDom.CreatePayrollJob(newCtx, job)
@@ -73,14 +73,6 @@ func (p *payslip) CreatePayslipForUser(ctx context.Context, data entity.CreatePa
 		var (
 			salary float64
 		)
-		// Check if payroll already exists
-		exists, err := p.PayslipDom.IsPayrollExists(newCtx, data.PeriodID)
-		if err != nil {
-			return err
-		}
-		if exists {
-			return x.NewWithCode(http.StatusBadRequest, "payroll already run for this period")
-		}
 
 		user, err := p.UserDom.GetUsers(newCtx, entity.GetUserFilter{
 			ID: data.UserID,
@@ -165,9 +157,8 @@ func (p *payslip) CreatePayslipForUser(ctx context.Context, data entity.CreatePa
 
 		// update job
 		err = p.PayslipDom.UpdatePayslipJob(newCtx, entity.UpdatePayslipJob{
-			ID:          data.JobID,
-			Status:      "completed",
-			CompletedAt: pkg.TimePtr(time.Now()),
+			ID:     data.JobID,
+			Status: "completed",
 		})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to save payslip job")
