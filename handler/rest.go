@@ -55,4 +55,7 @@ func (r rest) Serve() {
 	api.GET("/payslip", r.GetPayslip)
 
 	api.POST("/attendance/period", r.CreateAttendancePeriod)
+
+	// payslip summary
+	// add ip address
 }

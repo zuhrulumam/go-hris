@@ -16,7 +16,7 @@ type UsecaseItf interface {
 	CreatePayroll(ctx context.Context, periodID uint) error
 	GetPayslip(ctx context.Context, userID, periodID uint) (*entity.Payslip, error)
 
-	CreatePayslipForUser(ctx context.Context, userID, periodID uint) error
+	CreatePayslipForUser(ctx context.Context, data entity.CreatePayslipForUserData) error
 }
 
 type Option struct {

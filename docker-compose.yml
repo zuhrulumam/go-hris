@@ -64,6 +64,7 @@ services:
 
   asynqmon:
     image: hibiken/asynqmon
+    platform: linux/amd64
     environment:
       - REDIS_ADDR=redis:6379
     ports:

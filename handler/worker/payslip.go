@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/hibiken/asynq"
+	"github.com/zuhrulumam/go-hris/business/entity"
 	"github.com/zuhrulumam/go-hris/business/usecase/payslip"
 	"github.com/zuhrulumam/go-hris/task"
 )
@@ -21,5 +22,9 @@ func (h *Handler) HandleCreatePayrollTask(ctx context.Context, t *asynq.Task) er
 	}
 
 	log.Printf("⏳ Processing payroll for user %d in period %d", payload.UserID, payload.PeriodID)
-	return h.Payslip.CreatePayslipForUser(ctx, payload.PeriodID, payload.UserID)
+	return h.Payslip.CreatePayslipForUser(ctx, entity.CreatePayslipForUserData{
+		UserID:   payload.UserID,
+		PeriodID: payload.PeriodID,
+		JobID:    payload.JobID,
+	})
 }

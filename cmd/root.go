@@ -21,6 +21,7 @@ func init() {
 	rootCmd.AddCommand(seedCommand)
 	rootCmd.AddCommand(cleanerCommand)
 	rootCmd.AddCommand(workerCommand)
+	rootCmd.AddCommand(schedulerCommand)
 }
 
 func Execute() {

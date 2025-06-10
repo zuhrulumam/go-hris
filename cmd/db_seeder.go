@@ -100,6 +100,18 @@ type Payslip struct {
 	UpdatedAt          time.Time
 }
 
+type PayrollJob struct {
+	ID        uint
+	PeriodID  uint
+	UserID    uint
+	Status    string // pending, processing, done, failed
+	Attempts  int
+	LastError *string
+	NextRunAt time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 var seedCommand = &cobra.Command{
 	Use: "seed",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -119,6 +131,7 @@ func seed(db *gorm.DB) {
 		&Overtime{},
 		&Reimbursement{},
 		&Payslip{},
+		&PayrollJob{},
 	); err != nil {
 		log.Fatalf("failed to migrate tables: %v", err)
 	}

@@ -79,3 +79,58 @@ func (p *payslip) CreatePayslip(ctx context.Context, payslips []entity.Payslip) 
 
 	return nil
 }
+
+func (p *payslip) CreatePayrollJob(ctx context.Context, job entity.PayrollJob) (*entity.PayrollJob, error) {
+	db := pkg.GetTransactionFromCtx(ctx, p.db)
+
+	if err := db.WithContext(ctx).Create(&job).Error; err != nil {
+		return nil, x.WrapWithCode(err, http.StatusInternalServerError, "failed to create payroll job")
+	}
+
+	return &job, nil
+}
+
+func (p *payslip) UpdatePayslipJob(ctx context.Context, data entity.UpdatePayslipJob) error {
+	db := pkg.GetTransactionFromCtx(ctx, p.db)
+
+	if data.ID == 0 {
+		return x.NewWithCode(http.StatusBadRequest, "payslip job ID is required")
+	}
+
+	updates := map[string]interface{}{}
+
+	if data.Status != "" {
+		updates["status"] = data.Status
+	}
+	if data.StartedAt != nil {
+		updates["started_at"] = data.StartedAt
+	}
+	if data.CompletedAt != nil {
+		updates["completed_at"] = data.CompletedAt
+	}
+	if data.FailedReason != nil {
+		updates["failed_reason"] = data.FailedReason
+	}
+
+	if len(updates) == 0 {
+		return x.NewWithCode(http.StatusBadRequest, "no updates provided")
+	}
+
+	// Optimistic concurrency control: increment version
+	updates["version"] = data.Version + 1
+
+	tx := db.WithContext(ctx).
+		Model(&entity.PayrollJob{}).
+		Where("id = ? AND version = ?", data.ID, data.Version).
+		Updates(updates)
+
+	if tx.RowsAffected == 0 {
+		return x.NewWithCode(http.StatusConflict, "payslip job was updated by someone else, please retry")
+	}
+
+	if tx.Error != nil {
+		return x.WrapWithCode(tx.Error, http.StatusInternalServerError, "failed to update payslip job")
+	}
+
+	return nil
+}

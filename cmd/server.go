@@ -25,10 +25,11 @@ var serverCommand = &cobra.Command{
 }
 
 var (
-	dom *domain.Domain
-	uc  *usecase.Usecase
-	db  *gorm.DB
-	lg  *zap.Logger
+	dom     *domain.Domain
+	uc      *usecase.Usecase
+	db      *gorm.DB
+	lg      *zap.Logger
+	aClient *asynq.Client
 )
 
 func run() {
@@ -52,7 +53,7 @@ func run() {
 	})
 
 	// init asynq client
-	aClient := NewAsynqClient()
+	aClient = NewAsynqClient()
 
 	// init usecase
 	uc = usecase.Init(dom, usecase.Option{

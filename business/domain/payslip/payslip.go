@@ -14,6 +14,8 @@ type DomainItf interface {
 	IsPayrollExists(ctx context.Context, periodID uint) (bool, error)
 
 	CreatePayslip(ctx context.Context, payslips []entity.Payslip) error
+	CreatePayrollJob(ctx context.Context, data entity.PayrollJob) (*entity.PayrollJob, error)
+	UpdatePayslipJob(ctx context.Context, data entity.UpdatePayslipJob) error
 }
 
 type payslip struct {

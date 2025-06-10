@@ -40,3 +40,30 @@ type GetPayrollSummaryResponse struct {
 	Items      []PayrollSummaryItem
 	GrandTotal float64
 }
+
+type PayrollJob struct {
+	ID        uint
+	PeriodID  uint
+	UserID    uint
+	Status    string // pending, processing, done, failed
+	Attempts  int
+	LastError *string
+	NextRunAt time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type UpdatePayslipJob struct {
+	ID           uint
+	Version      uint
+	Status       string
+	StartedAt    *time.Time
+	CompletedAt  *time.Time
+	FailedReason *string
+}
+
+type CreatePayslipForUserData struct {
+	UserID   uint
+	PeriodID uint
+	JobID    uint
+}

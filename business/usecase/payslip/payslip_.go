@@ -94,37 +94,55 @@ func (p *payslip) GetPayslip(ctx context.Context, userID, periodID uint) (*entit
 }
 
 func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
-	// Get All Users
-	users, err := p.UserDom.GetUsers(ctx, entity.GetUserFilter{
-		Role: string(entity.RoleEmployee),
+
+	return p.TransactionDom.RunInTx(ctx, func(newCtx context.Context) error {
+		// Get All Users
+		users, err := p.UserDom.GetUsers(ctx, entity.GetUserFilter{
+			Role: string(entity.RoleEmployee),
+		})
+		if err != nil {
+			return err
+		}
+
+		// queue task to asynq
+		for _, user := range users {
+			// Step 1: Insert PayrollJob
+			job := entity.PayrollJob{
+				PeriodID:  periodID,
+				UserID:    user.ID,
+				Status:    "pending",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+
+			j, err := p.PayslipDom.CreatePayrollJob(newCtx, job)
+			if err != nil {
+				return err
+			}
+
+			task, err := task.NewCreatePayrollTask(periodID, user.ID, j.ID)
+			if err != nil {
+				return err
+			}
+
+			_, err = p.AsynqClient.Enqueue(task)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
-	if err != nil {
-		return err
-	}
 
-	// queue task to asynq
-	for _, user := range users {
-		task, err := task.NewCreatePayrollTask(periodID, user.ID)
-		if err != nil {
-			return err
-		}
-
-		_, err = p.AsynqClient.Enqueue(task)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
-func (p *payslip) CreatePayslipForUser(ctx context.Context, userID, periodID uint) error {
+func (p *payslip) CreatePayslipForUser(ctx context.Context, data entity.CreatePayslipForUserData) error {
 	return p.TransactionDom.RunInTx(ctx, func(newCtx context.Context) error {
 
 		var (
 			salary float64
 		)
 		// Check if payroll already exists
-		exists, err := p.PayslipDom.IsPayrollExists(newCtx, periodID)
+		exists, err := p.PayslipDom.IsPayrollExists(newCtx, data.PeriodID)
 		if err != nil {
 			return err
 		}
@@ -133,7 +151,7 @@ func (p *payslip) CreatePayslipForUser(ctx context.Context, userID, periodID uin
 		}
 
 		user, err := p.UserDom.GetUsers(newCtx, entity.GetUserFilter{
-			ID: userID,
+			ID: data.UserID,
 		})
 		if err != nil {
 			return err
@@ -147,24 +165,24 @@ func (p *payslip) CreatePayslipForUser(ctx context.Context, userID, periodID uin
 
 		// Get all attendance, overtime, and reimbursement data for the period
 		attendances, err := p.AttendanceDom.GetAttendance(newCtx, entity.GetAttendance{
-			AttendancePeriodID: periodID,
-			UserID:             userID,
+			AttendancePeriodID: data.PeriodID,
+			UserID:             data.UserID,
 		})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch attendance data")
 		}
 
 		overtimes, err := p.AttendanceDom.GetOvertime(newCtx, entity.GetOvertimeFilter{
-			AttendancePeriodID: periodID,
-			UserID:             userID,
+			AttendancePeriodID: data.PeriodID,
+			UserID:             data.UserID,
 		})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch overtime data")
 		}
 
 		reimbursements, err := p.ReimbursementDom.GetReimbursements(newCtx, entity.GetReimbursementFilter{
-			AttendancePeriodID: periodID,
-			UserID:             userID,
+			AttendancePeriodID: data.PeriodID,
+			UserID:             data.UserID,
 		})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch reimbursement data")
@@ -194,8 +212,8 @@ func (p *payslip) CreatePayslipForUser(ctx context.Context, userID, periodID uin
 		totalPay := attendanceAmount + overtimeAmount + reimbursementTotal
 
 		payslip = entity.Payslip{
-			UserID:             userID,
-			AttendancePeriodID: periodID,
+			UserID:             data.UserID,
+			AttendancePeriodID: data.PeriodID,
 			BaseSalary:         salary,
 			WorkingDays:        workingDays,
 			AttendedDays:       attendedDays,
@@ -207,19 +225,20 @@ func (p *payslip) CreatePayslipForUser(ctx context.Context, userID, periodID uin
 			CreatedAt:          time.Now(),
 		}
 
-		// 6. Save all payslips
+		// Save payslip
 		err = p.PayslipDom.CreatePayslip(newCtx, []entity.Payslip{payslip})
 		if err != nil {
 			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to save payslips")
 		}
 
-		// 7. Close the attendance period
-		err = p.AttendanceDom.UpdateAttendancePeriod(newCtx, entity.UpdateAttendancePeriod{
-			ID:     periodID,
-			Status: pkg.StringPtr("close"),
+		// update job
+		err = p.PayslipDom.UpdatePayslipJob(newCtx, entity.UpdatePayslipJob{
+			ID:          data.JobID,
+			Status:      "completed",
+			CompletedAt: pkg.TimePtr(time.Now()),
 		})
 		if err != nil {
-			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to close attendance period")
+			return x.WrapWithCode(err, http.StatusInternalServerError, "failed to save payslip job")
 		}
 
 		return nil
