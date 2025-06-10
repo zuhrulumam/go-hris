@@ -11,7 +11,6 @@ import (
 type DomainItf interface {
 	GetPayslip(ctx context.Context, filter entity.GetPayslipRequest) ([]entity.Payslip, int64, int, error)
 	GetPayrollSummary(ctx context.Context, req entity.GetPayrollSummaryRequest) (*entity.GetPayrollSummaryResponse, error)
-	IsPayrollExists(ctx context.Context, periodID uint) (bool, error)
 
 	CreatePayslip(ctx context.Context, payslips []entity.Payslip) error
 	CreatePayrollJob(ctx context.Context, data entity.PayrollJob) (*entity.PayrollJob, error)
