@@ -2,8 +2,10 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"github.com/zuhrulumam/go-hris/business/usecase"
-	_ "github.com/zuhrulumam/go-hris/docs" // replace with your module
+	_ "github.com/zuhrulumam/go-hris/docs"
 	"github.com/zuhrulumam/go-hris/pkg/middlewares"
 	"go.uber.org/zap"
 )
@@ -37,7 +39,7 @@ func Init(opt Option) Rest {
 
 func (r rest) Serve() {
 	// swagger
-	// r.app.GET("/swagger/*", swagger.HandlerDefault)
+	r.app.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	r.app.POST("/login", r.Login)
 	r.app.POST("/register", r.Register)
@@ -54,8 +56,7 @@ func (r rest) Serve() {
 	api.POST("/payroll/create", r.CreatePayroll)
 	api.GET("/payslip", r.GetPayslip)
 
-	api.POST("/attendance/period", r.CreateAttendancePeriod)
+	api.GET("/payroll/summary", r.GetPayrollSummary)
 
-	// payslip summary
-	// add ip address
+	api.POST("/attendance/period", r.CreateAttendancePeriod)
 }

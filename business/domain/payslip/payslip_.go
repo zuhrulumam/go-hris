@@ -2,41 +2,78 @@ package payslip
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/zuhrulumam/go-hris/business/entity"
 	"github.com/zuhrulumam/go-hris/pkg"
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
-	"gorm.io/gorm"
 )
 
-func (p *payslip) GetPayslip(ctx context.Context, req entity.GetPayslipRequest) (*entity.Payslip, error) {
-	db := pkg.GetTransactionFromCtx(ctx, p.db)
+func (p *payslip) GetPayslip(ctx context.Context, filter entity.GetPayslipRequest) ([]entity.Payslip, int64, int, error) {
 
-	var payslip entity.Payslip
-	err := db.WithContext(ctx).
-		Where("user_id = ? AND attendance_period_id = ?", req.UserID, req.AttendancePeriodID).
-		First(&payslip).Error
+	db := pkg.GetTransactionFromCtx(ctx, p.db).WithContext(ctx)
+	query := db.Model(&entity.Payslip{})
 
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, x.NewWithCode(http.StatusNotFound, "payslip not found")
-	} else if err != nil {
-		return nil, x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch payslip")
+	// Apply dynamic filters
+	if filter.UserID != nil {
+		query = query.Where("user_id = ?", *filter.UserID)
+	}
+	if filter.AttendancePeriodID != nil {
+		query = query.Where("attendance_period_id = ?", *filter.AttendancePeriodID)
+	}
+	if filter.Status != nil {
+		query = query.Where("status = ?", *filter.Status)
 	}
 
-	return &payslip, nil
+	// Count total rows (without limit/offset)
+	var totalCount int64
+	if err := query.Count(&totalCount).Error; err != nil {
+		return nil, 0, 0, x.WrapWithCode(err, http.StatusInternalServerError, "failed to count payslips")
+	}
+
+	// Default pagination values
+	limit := 10
+	page := 1
+	offset := 0
+
+	if filter.Limit > 1 {
+		limit = filter.Limit
+	}
+
+	if filter.Page > 0 {
+		page = filter.Page
+	}
+	offset = (page - 1) * limit
+
+	// Apply pagination
+	query = query.Limit(limit).Offset(offset)
+
+	// Fetch payslips
+	var payslips []entity.Payslip
+	if err := query.Find(&payslips).Error; err != nil {
+		return nil, 0, 0, x.WrapWithCode(err, http.StatusInternalServerError, "failed to query payslips")
+	}
+
+	// Calculate total pages
+	totalPage := int((totalCount + int64(limit) - 1) / int64(limit))
+
+	return payslips, totalCount, totalPage, nil
 }
 
 func (p *payslip) GetPayrollSummary(ctx context.Context, req entity.GetPayrollSummaryRequest) (*entity.GetPayrollSummaryResponse, error) {
 	db := pkg.GetTransactionFromCtx(ctx, p.db)
 
+	if len(req.AttendancePeriodIDs) == 0 {
+		return nil, x.NewWithCode(http.StatusBadRequest, "no attendance period IDs provided")
+	}
+
 	var results []entity.PayrollSummaryItem
 	err := db.WithContext(ctx).
 		Table("payslips").
-		Select("payslips.user_id, users.full_name, payslips.total_pay").
+		Select("payslips.user_id, users.full_name, SUM(payslips.total_pay) AS total_pay").
 		Joins("JOIN users ON payslips.user_id = users.id").
-		Where("payslips.attendance_period_id = ?", req.AttendancePeriodID).
+		Where("payslips.attendance_period_id IN ?", req.AttendancePeriodIDs).
+		Group("payslips.user_id, users.full_name").
 		Scan(&results).Error
 
 	if err != nil {

@@ -14,9 +14,10 @@ import (
 
 type UsecaseItf interface {
 	CreatePayroll(ctx context.Context, periodID uint) error
-	GetPayslip(ctx context.Context, userID, periodID uint) (*entity.Payslip, error)
+	GetPayslip(ctx context.Context, filter entity.GetPayslipRequest) ([]entity.Payslip, int64, int, error)
 
 	CreatePayslipForUser(ctx context.Context, data entity.CreatePayslipForUserData) error
+	GetPayrollSummary(ctx context.Context, filter entity.GetPayrollSummaryRequest) (*entity.GetPayrollSummaryResponse, error)
 }
 
 type Option struct {

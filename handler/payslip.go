@@ -1,10 +1,14 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/zuhrulumam/go-hris/business/entity"
+	"github.com/zuhrulumam/go-hris/pkg"
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
 )
 
@@ -15,7 +19,9 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        period_id query int true "Attendance Period ID"
-// @Success      200 {object} entity.Payslip
+// @Param        page query int false "Page number"
+// @Param        limit query int false "Page limit"
+// @Success      200 {object} handler.PayslipListResponse
 // @Failure      400 {object} handler.ErrorResponse
 // @Failure      401 {object} handler.ErrorResponse
 // @Failure      500 {object} handler.ErrorResponse
@@ -41,13 +47,16 @@ func (e *rest) GetPayslip(c *gin.Context) {
 		return
 	}
 
-	payslip, err := e.uc.Payslip.GetPayslip(ctx, uint(userID.(uint)), uint(periodID))
+	payslip, _, _, err := e.uc.Payslip.GetPayslip(ctx, entity.GetPayslipRequest{
+		UserID:             userID.(*uint),
+		AttendancePeriodID: pkg.UintPtr(uint(periodID)),
+	})
 	if err != nil {
 		e.compileError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, payslip)
+	c.JSON(http.StatusOK, payslip[0])
 }
 
 // CreatePayroll godoc
@@ -87,4 +96,51 @@ func (e *rest) CreatePayroll(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Payroll successfully created"})
+}
+
+// GetPayrollSummary godoc
+// @Summary      Get payroll summary
+// @Description  Retrieve payroll summary for multiple attendance periods, grouped by user
+// @Tags         Payroll
+// @Accept       json
+// @Produce      json
+// @Param        period_ids query string true "Comma-separated Attendance Period IDs (e.g., 1,2,3)"
+// @Success      200 {object} GetPayrollSummaryResponse
+// @Failure      400 {object} handler.ErrorResponse
+// @Failure      401 {object} handler.ErrorResponse
+// @Failure      500 {object} handler.ErrorResponse
+// @Router       /api/payroll/summary [get]
+func (e *rest) GetPayrollSummary(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	periodIDsParam := c.Query("period_ids")
+	if periodIDsParam == "" {
+		e.compileError(c, x.NewWithCode(http.StatusBadRequest, "missing period_ids"))
+		return
+	}
+
+	// Parse comma-separated values into []int64
+	strIDs := strings.Split(periodIDsParam, ",")
+	var periodIDs []uint
+	for _, str := range strIDs {
+		id, err := strconv.ParseInt(strings.TrimSpace(str), 10, 64)
+		if err != nil || id <= 0 {
+			e.compileError(c, x.NewWithCode(http.StatusBadRequest, fmt.Sprintf("invalid period_id: %s", str)))
+			return
+		}
+		periodIDs = append(periodIDs, uint(id))
+	}
+
+	summary, err := e.uc.Payslip.GetPayrollSummary(ctx, entity.GetPayrollSummaryRequest{
+		AttendancePeriodIDs: periodIDs,
+	})
+	if err != nil {
+		e.compileError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, GetPayrollSummaryResponse{
+		Items:      summary.Items,
+		GrandTotal: summary.GrandTotal,
+	})
 }

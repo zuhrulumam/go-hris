@@ -22,12 +22,15 @@ type CreatePayrollData struct {
 }
 
 type GetPayslipRequest struct {
-	UserID             uint
-	AttendancePeriodID uint
+	UserID             *uint
+	AttendancePeriodID *uint
+	Status             *string
+	Limit              int
+	Page               int
 }
 
 type GetPayrollSummaryRequest struct {
-	AttendancePeriodID uint
+	AttendancePeriodIDs []uint
 }
 
 type PayrollSummaryItem struct {

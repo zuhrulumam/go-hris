@@ -9,7 +9,7 @@ import (
 
 //go:generate mockgen -source=business/domain/payslip/payslip.go -destination=mocks/mock_payslip.go -package=mocks
 type DomainItf interface {
-	GetPayslip(ctx context.Context, req entity.GetPayslipRequest) (*entity.Payslip, error)
+	GetPayslip(ctx context.Context, filter entity.GetPayslipRequest) ([]entity.Payslip, int64, int, error)
 	GetPayrollSummary(ctx context.Context, req entity.GetPayrollSummaryRequest) (*entity.GetPayrollSummaryResponse, error)
 	IsPayrollExists(ctx context.Context, periodID uint) (bool, error)
 

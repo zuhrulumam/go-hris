@@ -11,86 +11,18 @@ import (
 	"github.com/zuhrulumam/go-hris/task"
 )
 
-func (p *payslip) GetPayslip(ctx context.Context, userID, periodID uint) (*entity.Payslip, error) {
-	// 1. Get user with salary info
-	users, err := p.UserDom.GetUsers(ctx, entity.GetUserFilter{ID: userID})
-	if err != nil || len(users) == 0 {
-		return nil, x.NewWithCode(http.StatusNotFound, "user not found")
-	}
-	user := users[0]
+func (p *payslip) GetPayslip(ctx context.Context, filter entity.GetPayslipRequest) ([]entity.Payslip, int64, int, error) {
 
-	// 2. Get attendance
-	attendances, err := p.AttendanceDom.GetAttendance(ctx, entity.GetAttendance{
-		AttendancePeriodID: periodID,
-	})
+	payslips, totalData, totalPage, err := p.PayslipDom.GetPayslip(ctx, filter)
 	if err != nil {
-		return nil, x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch attendance")
+		return nil, 0, 0, err
 	}
 
-	var userAttendances []entity.Attendance
-	for _, a := range attendances {
-		if a.UserID == userID {
-			userAttendances = append(userAttendances, a)
-		}
-	}
-	attendedDays := len(userAttendances)
-	workingDays := 22 // or fetch dynamically
-
-	// 3. Get overtime
-	overtimes, err := p.AttendanceDom.GetOvertime(ctx, entity.GetOvertimeFilter{
-		AttendancePeriodID: periodID,
-	})
-	if err != nil {
-		return nil, x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch overtime")
+	if len(payslips) < 1 {
+		return nil, totalData, totalPage, x.NewWithCode(http.StatusNotFound, "payslip not found")
 	}
 
-	var userOT []entity.Overtime
-	var totalHours float64
-	for _, o := range overtimes {
-		if o.UserID == userID {
-			userOT = append(userOT, o)
-			totalHours += o.Hours
-		}
-	}
-
-	// 4. Get reimbursements
-	reimbursements, err := p.ReimbursementDom.GetReimbursements(ctx, entity.GetReimbursementFilter{
-		AttendancePeriodID: periodID,
-	})
-	if err != nil {
-		return nil, x.WrapWithCode(err, http.StatusInternalServerError, "failed to fetch reimbursements")
-	}
-
-	var userReimbursements []entity.Reimbursement
-	var totalReimbursement float64
-	for _, r := range reimbursements {
-		if r.UserID == userID {
-			userReimbursements = append(userReimbursements, r)
-			totalReimbursement += r.Amount
-		}
-	}
-
-	// 5. Calculate components
-	attendanceAmount := (float64(attendedDays) / float64(workingDays)) * user.Salary
-	overtimeAmount := totalHours * (user.Salary / float64(workingDays)) * 1.5
-	totalPay := attendanceAmount + overtimeAmount + totalReimbursement
-
-	// 6. Return full payslip
-	payslip := &entity.Payslip{
-		UserID:             userID,
-		AttendancePeriodID: periodID,
-		BaseSalary:         user.Salary,
-		WorkingDays:        workingDays,
-		AttendedDays:       attendedDays,
-		AttendanceAmount:   attendanceAmount,
-		OvertimeHours:      totalHours,
-		OvertimePay:        overtimeAmount,
-		ReimbursementTotal: totalReimbursement,
-		TotalPay:           totalPay,
-		CreatedAt:          time.Now(), // or fetch from DB if already generated
-	}
-
-	return payslip, nil
+	return payslips, totalData, totalPage, nil
 }
 
 func (p *payslip) CreatePayroll(ctx context.Context, periodID uint) error {
@@ -243,4 +175,17 @@ func (p *payslip) CreatePayslipForUser(ctx context.Context, data entity.CreatePa
 
 		return nil
 	})
+}
+
+func (p *payslip) GetPayrollSummary(ctx context.Context, filter entity.GetPayrollSummaryRequest) (*entity.GetPayrollSummaryResponse, error) {
+	summary, err := p.PayslipDom.GetPayrollSummary(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(summary.Items) < 1 {
+		return nil, x.NewWithCode(http.StatusNotFound, "payroll summary not found")
+	}
+
+	return summary, nil
 }

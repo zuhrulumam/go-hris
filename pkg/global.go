@@ -21,3 +21,7 @@ func TimePtr(b time.Time) *time.Time {
 func StringPtr(b string) *string {
 	return &b
 }
+
+func UintPtr(b uint) *uint {
+	return &b
+}
