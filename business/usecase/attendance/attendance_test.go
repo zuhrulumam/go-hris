@@ -1,343 +1,455 @@
 package attendance_test
 
-// func TestPark(t *testing.T) {
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
 
-// 	tests := []struct {
-// 		name        string
-// 		setupMocks  func(p mockAttendance.MockDomainItf, t mockTx.MockDomainItf)
-// 		expectedErr bool
-// 	}{
-// 		{
-// 			name: "success attendance",
-// 			setupMocks: func(p mockAttendance.MockDomainItf, t mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+	"github.com/stretchr/testify/assert"
+	"github.com/zuhrulumam/go-hris/business/entity"
+	uc "github.com/zuhrulumam/go-hris/business/usecase/attendance"
+	mockAttendance "github.com/zuhrulumam/go-hris/mocks/domain/attendance"
+	mockTx "github.com/zuhrulumam/go-hris/mocks/domain/transaction"
+	"github.com/zuhrulumam/go-hris/pkg"
+	"go.uber.org/mock/gomock"
+	"gorm.io/gorm"
+)
 
-// 					p.EXPECT().GetAvailableAttendanceSpot(gomock.Any(), gomock.Any()).
-// 						Return([]entity.AttendanceSpot{{ID: 1, Floor: 1, Row: 1, Col: 1}}, nil)
+func TestCheckIn(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       entity.CheckIn
+		setupMocks  func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf)
+		expectErr   bool
+		errorString string
+	}{
+		{
+			name: "success check-in",
+			input: entity.CheckIn{
+				UserID: 1,
+				Date:   time.Date(2025, 6, 10, 9, 0, 0, 0, time.UTC), // Selasa
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendancePeriods(gomock.Any(), gomock.Any()).
+							Return([]entity.AttendancePeriod{{ID: 10}}, nil)
 
-// 					p.EXPECT().InsertVehicle(gomock.Any(), gomock.Any()).
-// 						Return(nil)
+						a.EXPECT().CreateAttendance(gomock.Any(), entity.CreateAttendance{
+							UserID:             1,
+							AttendancePeriodID: 10,
+							CheckInAt:          time.Date(2025, 6, 10, 9, 0, 0, 0, time.UTC),
+						}).Return(nil)
 
-// 					p.EXPECT().UpdateAttendanceSpot(gomock.Any(), gomock.Any()).
-// 						Return(nil)
+						return fn(ctx)
+					})
+			},
+			expectErr: false,
+		},
+		{
+			name: "check-in on weekend",
+			input: entity.CheckIn{
+				UserID: 1,
+				Date:   time.Date(2025, 6, 8, 9, 0, 0, 0, time.UTC), // Minggu
+			},
+			setupMocks:  func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {}, // no call
+			expectErr:   true,
+			errorString: "cannot check in on weekends",
+		},
+		{
+			name: "failed to get attendance period",
+			input: entity.CheckIn{
+				UserID: 1,
+				Date:   time.Date(2025, 6, 10, 9, 0, 0, 0, time.UTC),
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendancePeriods(gomock.Any(), gomock.Any()).
+							Return(nil, errors.New("get period failed"))
+						return fn(ctx)
+					})
+			},
+			expectErr:   true,
+			errorString: "get period failed",
+		},
+		{
+			name: "failed to create attendance",
+			input: entity.CheckIn{
+				UserID: 1,
+				Date:   time.Date(2025, 6, 10, 9, 0, 0, 0, time.UTC),
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendancePeriods(gomock.Any(), gomock.Any()).
+							Return([]entity.AttendancePeriod{{ID: 11}}, nil)
 
-// 					return fn(ctx)
-// 				})
+						a.EXPECT().CreateAttendance(gomock.Any(), gomock.Any()).
+							Return(errors.New("insert failed"))
 
-// 			},
-// 			expectedErr: false,
-// 		},
-// 		{
-// 			name: "no available spot",
-// 			setupMocks: func(p mockAttendance.MockDomainItf, t mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						return fn(ctx)
+					})
+			},
+			expectErr:   true,
+			errorString: "insert failed",
+		},
+	}
 
-// 					p.EXPECT().GetAvailableAttendanceSpot(gomock.Any(), gomock.Any()).
-// 						Return([]entity.AttendanceSpot{}, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-// 					return fn(ctx)
-// 				})
+			mockTx := mockTx.NewMockDomainItf(ctrl)
+			mockAtt := mockAttendance.NewMockDomainItf(ctrl)
 
-// 			},
-// 			expectedErr: true,
-// 		},
-// 		{
-// 			name: "insert vehicle failed",
-// 			setupMocks: func(p mockAttendance.MockDomainItf, t mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+			tt.setupMocks(*mockAtt, *mockTx)
 
-// 					p.EXPECT().GetAvailableAttendanceSpot(gomock.Any(), gomock.Any()).
-// 						Return([]entity.AttendanceSpot{{ID: 1, Floor: 1, Row: 1, Col: 1}}, nil)
+			usecase := uc.InitAttendanceUsecase(uc.Option{
+				AttendanceDom:  mockAtt,
+				TransactionDom: mockTx,
+			})
 
-// 					p.EXPECT().InsertVehicle(gomock.Any(), gomock.Any()).
-// 						Return(errors.New("insert failed"))
+			err := usecase.CheckIn(context.Background(), tt.input)
 
-// 					return fn(ctx)
-// 				})
+			if tt.expectErr {
+				assert.Error(t, err)
+				if tt.errorString != "" {
+					assert.Contains(t, err.Error(), tt.errorString)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-// 			},
-// 			expectedErr: true,
-// 		},
-// 		{
-// 			name: "update spot failed",
-// 			setupMocks: func(p mockAttendance.MockDomainItf, t mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+func TestCheckOut(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       entity.CheckOut
+		setupMocks  func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf)
+		expectErr   bool
+		errorString string
+	}{
+		{
+			name: "success checkout",
+			input: entity.CheckOut{
+				UserID: 1,
+				Date:   time.Date(2025, 6, 10, 17, 0, 0, 0, time.UTC),
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendance(gomock.Any(), entity.GetAttendance{
+							UserID: 1,
+							Date:   time.Date(2025, 6, 10, 17, 0, 0, 0, time.UTC),
+						}).Return([]entity.Attendance{{
+							ID:      100,
+							Version: 1,
+						}}, nil)
 
-// 					p.EXPECT().GetAvailableAttendanceSpot(gomock.Any(), gomock.Any()).
-// 						Return([]entity.AttendanceSpot{{ID: 1, Floor: 1, Row: 1, Col: 1}}, nil)
+						a.EXPECT().UpdateAttendance(gomock.Any(), entity.UpdateAttendance{
+							AttendanceID: 100,
+							CheckOutAt:   pkg.TimePtr(time.Date(2025, 6, 10, 17, 0, 0, 0, time.UTC)),
+							Version:      1,
+						}).Return(nil)
 
-// 					p.EXPECT().InsertVehicle(gomock.Any(), gomock.Any()).
-// 						Return(nil)
+						return fn(ctx)
+					})
+			},
+			expectErr: false,
+		},
+		{
+			name: "get attendance failed",
+			input: entity.CheckOut{
+				UserID: 1,
+				Date:   time.Date(2025, 6, 10, 17, 0, 0, 0, time.UTC),
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendance(gomock.Any(), gomock.Any()).
+							Return(nil, errors.New("get attendance failed"))
+						return fn(ctx)
+					})
+			},
+			expectErr:   true,
+			errorString: "get attendance failed",
+		},
+		{
+			name: "update attendance failed",
+			input: entity.CheckOut{
+				UserID: 1,
+				Date:   time.Date(2025, 6, 10, 17, 0, 0, 0, time.UTC),
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendance(gomock.Any(), gomock.Any()).
+							Return([]entity.Attendance{{
+								ID:      100,
+								Version: 1,
+							}}, nil)
 
-// 					p.EXPECT().UpdateAttendanceSpot(gomock.Any(), gomock.Any()).
-// 						Return(errors.New("update failed"))
+						a.EXPECT().UpdateAttendance(gomock.Any(), gomock.Any()).
+							Return(errors.New("update failed"))
+						return fn(ctx)
+					})
+			},
+			expectErr:   true,
+			errorString: "update failed",
+		},
+	}
 
-// 					return fn(ctx)
-// 				})
-// 			},
-// 			expectedErr: true,
-// 		},
-// 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			ctrl := gomock.NewController(t)
-// 			defer ctrl.Finish()
-// 			mocktx := mockTx.NewMockDomainItf(ctrl)
-// 			mockpark := mockAttendance.NewMockDomainItf(ctrl)
+			mockTx := mockTx.NewMockDomainItf(ctrl)
+			mockAtt := mockAttendance.NewMockDomainItf(ctrl)
 
-// 			tt.setupMocks(*mockpark, *mocktx)
+			tt.setupMocks(*mockAtt, *mockTx)
 
-// 			usecase := uc.InitAttendanceUsecase(uc.Option{
-// 				AttendanceDom:  mockpark,
-// 				TransactionDom: mocktx,
-// 			})
+			usecase := uc.InitAttendanceUsecase(uc.Option{
+				AttendanceDom:  mockAtt,
+				TransactionDom: mockTx,
+			})
 
-// 			err := usecase.Park(context.Background(), entity.Park{
-// 				VehicleNumber: "B1234XYZ",
-// 				VehicleType:   "car",
-// 			})
+			err := usecase.CheckOut(context.Background(), tt.input)
 
-// 			if tt.expectedErr {
-// 				assert.Error(t, err)
-// 			} else {
-// 				assert.NoError(t, err)
-// 			}
+			if tt.expectErr {
+				assert.Error(t, err)
+				if tt.errorString != "" {
+					assert.Contains(t, err.Error(), tt.errorString)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-// 		})
-// 	}
-// }
+func TestCreateOvertime(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       entity.CreateOvertimeData
+		setupMocks  func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf)
+		expectErr   bool
+		errorString string
+	}{
+		{
+			name: "success create overtime",
+			input: entity.CreateOvertimeData{
+				UserID: 1,
+				Date:   time.Date(2025, 6, 10, 18, 0, 0, 0, time.UTC),
+				Hours:  2,
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendance(gomock.Any(), gomock.Any()).
+							Return([]entity.Attendance{{
+								ID:                 1,
+								AttendancePeriodID: 10,
+								CheckedOutAt:       pkg.TimePtr(time.Date(2025, 6, 10, 17, 0, 0, 0, time.UTC)),
+							}}, nil)
 
-// func TestUnpark(t *testing.T) {
-// 	tests := []struct {
-// 		name        string
-// 		setupMocks  func(p *mockAttendance.MockDomainItf, t *mockTx.MockDomainItf)
-// 		expectedErr bool
-// 	}{
-// 		{
-// 			name: "success unpark",
-// 			setupMocks: func(p *mockAttendance.MockDomainItf, t *mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
-// 					p.EXPECT().GetVehicle(gomock.Any(), gomock.Any()).Return(entity.Vehicle{
-// 						ID:            1,
-// 						VehicleNumber: "B1234XYZ",
-// 						SpotID:        "1-2-3",
-// 						UnparkedAt:    nil,
-// 					}, nil)
+						a.EXPECT().GetOvertime(gomock.Any(), gomock.Any()).
+							Return(nil, gorm.ErrRecordNotFound)
 
-// 					p.EXPECT().UpdateVehicle(gomock.Any(), gomock.Any()).Return(nil)
+						a.EXPECT().CreateOvertime(gomock.Any(), gomock.Any()).
+							Return(nil)
 
-// 					p.EXPECT().UpdateAttendanceSpot(gomock.Any(), gomock.Any()).Return(nil)
+						return fn(ctx)
+					})
+			},
+			expectErr: false,
+		},
+		{
+			name: "hours exceed max limit",
+			input: entity.CreateOvertimeData{
+				UserID: 1,
+				Date:   time.Now(),
+				Hours:  4,
+			},
+			setupMocks:  func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {},
+			expectErr:   true,
+			errorString: "overtime cannot be more than 3 hours per day",
+		},
+		{
+			name: "attendance not found",
+			input: entity.CreateOvertimeData{
+				UserID: 2,
+				Date:   time.Date(2025, 6, 10, 18, 0, 0, 0, time.UTC),
+				Hours:  2,
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendance(gomock.Any(), gomock.Any()).
+							Return(nil, errors.New("attendance not found for the date"))
+						return fn(ctx)
+					})
+			},
+			expectErr:   true,
+			errorString: "attendance not found for the date",
+		},
+		{
+			name: "not checked out yet",
+			input: entity.CreateOvertimeData{
+				UserID: 3,
+				Date:   time.Date(2025, 6, 10, 18, 0, 0, 0, time.UTC),
+				Hours:  2,
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendance(gomock.Any(), gomock.Any()).
+							Return([]entity.Attendance{{
+								ID:           1,
+								CheckedOutAt: nil,
+							}}, nil)
+						return fn(ctx)
+					})
+			},
+			expectErr:   true,
+			errorString: "must check out before submitting overtime",
+		},
+		{
+			name: "overtime already submitted",
+			input: entity.CreateOvertimeData{
+				UserID: 4,
+				Date:   time.Date(2025, 6, 10, 18, 0, 0, 0, time.UTC),
+				Hours:  2,
+			},
+			setupMocks: func(a mockAttendance.MockDomainItf, tx mockTx.MockDomainItf) {
+				tx.EXPECT().RunInTx(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						a.EXPECT().GetAttendance(gomock.Any(), gomock.Any()).
+							Return([]entity.Attendance{{
+								ID:                 1,
+								AttendancePeriodID: 10,
+								CheckedOutAt:       pkg.TimePtr(time.Date(2025, 6, 10, 17, 0, 0, 0, time.UTC)),
+							}}, nil)
 
-// 					return fn(ctx)
-// 				})
-// 			},
-// 			expectedErr: false,
-// 		},
-// 		{
-// 			name: "already unparked",
-// 			setupMocks: func(p *mockAttendance.MockDomainItf, t *mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
-// 					now := time.Now()
-// 					p.EXPECT().GetVehicle(gomock.Any(), gomock.Any()).Return(entity.Vehicle{
-// 						ID:            1,
-// 						VehicleNumber: "B1234XYZ",
-// 						SpotID:        "1-2-3",
-// 						UnparkedAt:    &now,
-// 					}, nil)
-// 					return fn(ctx)
-// 				})
-// 			},
-// 			expectedErr: true,
-// 		},
-// 		{
-// 			name: "get vehicle failed",
-// 			setupMocks: func(p *mockAttendance.MockDomainItf, t *mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
-// 					p.EXPECT().GetVehicle(gomock.Any(), gomock.Any()).Return(entity.Vehicle{}, errors.New("not found"))
-// 					return fn(ctx)
-// 				})
-// 			},
-// 			expectedErr: true,
-// 		},
-// 		{
-// 			name: "update vehicle failed",
-// 			setupMocks: func(p *mockAttendance.MockDomainItf, t *mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
-// 					p.EXPECT().GetVehicle(gomock.Any(), gomock.Any()).Return(entity.Vehicle{
-// 						ID:            1,
-// 						VehicleNumber: "B1234XYZ",
-// 						SpotID:        "1-2-3",
-// 						UnparkedAt:    nil,
-// 					}, nil)
+						a.EXPECT().GetOvertime(gomock.Any(), gomock.Any()).
+							Return([]entity.Overtime{{ID: 123}}, nil)
 
-// 					p.EXPECT().UpdateVehicle(gomock.Any(), gomock.Any()).Return(errors.New("update failed"))
+						return fn(ctx)
+					})
+			},
+			expectErr:   true,
+			errorString: "overtime already submitted for this date",
+		},
+	}
 
-// 					return fn(ctx)
-// 				})
-// 			},
-// 			expectedErr: true,
-// 		},
-// 		{
-// 			name: "update attendance spot failed",
-// 			setupMocks: func(p *mockAttendance.MockDomainItf, t *mockTx.MockDomainItf) {
-// 				t.EXPECT().RunInTx(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
-// 					p.EXPECT().GetVehicle(gomock.Any(), gomock.Any()).Return(entity.Vehicle{
-// 						ID:            1,
-// 						VehicleNumber: "B1234XYZ",
-// 						SpotID:        "1-2-3",
-// 						UnparkedAt:    nil,
-// 					}, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-// 					p.EXPECT().UpdateVehicle(gomock.Any(), gomock.Any()).Return(nil)
+			mockTx := mockTx.NewMockDomainItf(ctrl)
+			mockAtt := mockAttendance.NewMockDomainItf(ctrl)
 
-// 					p.EXPECT().UpdateAttendanceSpot(gomock.Any(), gomock.Any()).Return(errors.New("update spot failed"))
+			tt.setupMocks(*mockAtt, *mockTx)
 
-// 					return fn(ctx)
-// 				})
-// 			},
-// 			expectedErr: true,
-// 		},
-// 	}
+			usecase := uc.InitAttendanceUsecase(uc.Option{
+				AttendanceDom:  mockAtt,
+				TransactionDom: mockTx,
+			})
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			ctrl := gomock.NewController(t)
-// 			defer ctrl.Finish()
+			err := usecase.CreateOvertime(context.Background(), tt.input)
 
-// 			mockTx := mockTx.NewMockDomainItf(ctrl)
-// 			mockPark := mockAttendance.NewMockDomainItf(ctrl)
+			if tt.expectErr {
+				assert.Error(t, err)
+				if tt.errorString != "" {
+					assert.Contains(t, err.Error(), tt.errorString)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-// 			tt.setupMocks(mockPark, mockTx)
+func TestGetOvertime(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-// 			usecase := uc.InitAttendanceUsecase(uc.Option{
-// 				AttendanceDom:  mockPark,
-// 				TransactionDom: mockTx,
-// 			})
+	mockAtt := mockAttendance.NewMockDomainItf(ctrl)
 
-// 			err := usecase.Unpark(context.Background(), entity.UnPark{
-// 				VehicleNumber: "B1234XYZ",
-// 			})
+	usecase := uc.InitAttendanceUsecase(uc.Option{
+		AttendanceDom: mockAtt,
+	})
 
-// 			if tt.expectedErr {
-// 				assert.Error(t, err)
-// 			} else {
-// 				assert.NoError(t, err)
-// 			}
-// 		})
-// 	}
-// }
+	filter := entity.GetOvertimeFilter{
+		UserID: 1,
+		Date:   time.Date(2025, 6, 10, 0, 0, 0, 0, time.UTC),
+	}
 
-// func TestAvailableSpot(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
+	t.Run("success get overtime", func(t *testing.T) {
+		expected := []entity.Overtime{
+			{ID: 1, UserID: 1, Date: filter.Date, Hours: 2},
+		}
 
-// 	mockPark := mockAttendance.NewMockDomainItf(ctrl)
+		mockAtt.EXPECT().GetOvertime(gomock.Any(), filter).Return(expected, nil)
 
-// 	usecase := uc.InitAttendanceUsecase(uc.Option{
-// 		AttendanceDom:  mockPark,
-// 		TransactionDom: nil,
-// 	})
+		result, err := usecase.GetOvertime(context.Background(), filter)
+		assert.NoError(t, err)
+		assert.Equal(t, expected, result)
+	})
 
-// 	tests := []struct {
-// 		name        string
-// 		mockReturn  []entity.AttendanceSpot
-// 		input       entity.GetAvailablePark
-// 		mockError   error
-// 		expectError bool
-// 	}{
-// 		{
-// 			name: "success",
-// 			mockReturn: []entity.AttendanceSpot{
-// 				{ID: 1, Floor: 1, Row: 1, Col: 1},
-// 			},
-// 			input: entity.GetAvailablePark{
-// 				VehicleType: "M",
-// 			},
-// 			mockError:   nil,
-// 			expectError: false,
-// 		},
-// 		{
-// 			name:       "error from domain",
-// 			mockReturn: nil,
-// 			input: entity.GetAvailablePark{
-// 				VehicleType: "M",
-// 			},
-// 			mockError:   errors.New("db error"),
-// 			expectError: true,
-// 		},
-// 	}
+	t.Run("failed to get overtime", func(t *testing.T) {
+		mockAtt.EXPECT().GetOvertime(gomock.Any(), filter).
+			Return(nil, errors.New("database error"))
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			mockPark.EXPECT().
-// 				GetAvailableAttendanceSpot(gomock.Any(), gomock.Any()).
-// 				Return(tt.mockReturn, tt.mockError)
+		result, err := usecase.GetOvertime(context.Background(), filter)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "database error")
+	})
+}
 
-// 			spots, err := usecase.AvailableSpot(context.Background(), tt.input)
-// 			if tt.expectError {
-// 				assert.Error(t, err)
-// 				assert.Nil(t, spots)
-// 			} else {
-// 				assert.NoError(t, err)
-// 				assert.Equal(t, tt.mockReturn, spots)
-// 			}
-// 		})
-// 	}
-// }
+func TestCreateAttendancePeriod(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-// func TestSearchVehicle(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
+	mockAtt := mockAttendance.NewMockDomainItf(ctrl)
 
-// 	mockPark := mockAttendance.NewMockDomainItf(ctrl)
+	usecase := uc.InitAttendanceUsecase(uc.Option{
+		AttendanceDom: mockAtt,
+	})
 
-// 	usecase := uc.InitAttendanceUsecase(uc.Option{
-// 		AttendanceDom:  mockPark,
-// 		TransactionDom: nil,
-// 	})
+	req := entity.CreateAttendancePeriodRequest{
+		StartDate: time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2025, 6, 30, 0, 0, 0, 0, time.UTC),
+	}
 
-// 	tests := []struct {
-// 		name        string
-// 		inputNumber entity.SearchVehicle
-// 		mockReturn  entity.Vehicle
-// 		mockError   error
-// 		expectError bool
-// 	}{
-// 		{
-// 			name: "success",
-// 			inputNumber: entity.SearchVehicle{
-// 				VehicleNumber: "B1234XYZ",
-// 			},
-// 			mockReturn:  entity.Vehicle{VehicleNumber: "B1234XYZ"},
-// 			mockError:   nil,
-// 			expectError: false,
-// 		},
-// 		{
-// 			name: "vehicle not found",
-// 			inputNumber: entity.SearchVehicle{
-// 				VehicleNumber: "B1234XYZ",
-// 			},
-// 			mockReturn:  entity.Vehicle{},
-// 			mockError:   errors.New("not found"),
-// 			expectError: true,
-// 		},
-// 	}
+	t.Run("success create attendance period", func(t *testing.T) {
+		mockAtt.EXPECT().
+			CreateAttendancePeriod(gomock.Any(), gomock.AssignableToTypeOf(entity.AttendancePeriod{})).
+			DoAndReturn(func(_ context.Context, p entity.AttendancePeriod) error {
+				assert.Equal(t, req.StartDate, p.StartDate)
+				assert.Equal(t, req.EndDate, p.EndDate)
+				assert.Equal(t, "open", p.Status)
+				return nil
+			})
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			mockPark.EXPECT().
-// 				GetVehicle(gomock.Any(), tt.inputNumber).
-// 				Return(tt.mockReturn, tt.mockError)
+		err := usecase.CreateAttendancePeriod(context.Background(), req)
+		assert.NoError(t, err)
+	})
 
-// 			vehicle, err := usecase.SearchVehicle(context.Background(), tt.inputNumber)
-// 			if tt.expectError {
-// 				assert.Error(t, err)
-// 				assert.Empty(t, vehicle.VehicleNumber)
-// 			} else {
-// 				assert.NoError(t, err)
-// 				assert.Equal(t, tt.mockReturn.VehicleNumber, vehicle.VehicleNumber)
-// 			}
-// 		})
-// 	}
-// }
+	t.Run("failed create attendance period", func(t *testing.T) {
+		mockAtt.EXPECT().
+			CreateAttendancePeriod(gomock.Any(), gomock.Any()).
+			Return(errors.New("insert failed"))
+
+		err := usecase.CreateAttendancePeriod(context.Background(), req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create attendance period")
+	})
+}

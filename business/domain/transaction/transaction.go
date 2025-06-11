@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+//go:generate mockgen -source=business/domain/transaction/transaction.go -destination=mocks/domain/transaction/mock_transaction.go -package=mocks
 type DomainItf interface {
 	RunInTx(ctx context.Context, fn func(ctx context.Context) error) error
 }

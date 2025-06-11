@@ -69,11 +69,12 @@ func (p *attendance) CheckOut(ctx context.Context, data entity.CheckOut) error {
 }
 
 func (p *attendance) CreateOvertime(ctx context.Context, data entity.CreateOvertimeData) error {
+	// Check: max 3 hours
+	if data.Hours > 3 {
+		return x.NewWithCode(http.StatusBadRequest, "overtime cannot be more than 3 hours per day")
+	}
+
 	return p.TransactionDom.RunInTx(ctx, func(newCtx context.Context) error {
-		// Check: max 3 hours
-		if data.Hours > 3 {
-			return x.NewWithCode(http.StatusBadRequest, "overtime cannot be more than 3 hours per day")
-		}
 
 		// Check: already checked out for the day
 		att, err := p.AttendanceDom.GetAttendance(newCtx, entity.GetAttendance{
