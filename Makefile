@@ -17,7 +17,8 @@ start-worker:
 start-scheduler:
 	go run main.go start-scheduler
 
-all: seed start start-worker
+swaggo:
+	swag init
 
 test:
 	go test -v ./...

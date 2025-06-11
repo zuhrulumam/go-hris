@@ -143,8 +143,8 @@ func (e *rest) CreateOvertime(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        request body CreateAttendancePeriodRequest true "Attendance Period Data"
-// @Success      201 {object} x.SuccessResponse
-// @Failure      400,500 {object} x.ErrorResponse
+// @Success      201 {object} GenericResponse
+// @Failure      400,500 {object} ErrorResponse
 // @Router       /attendance-periods [post]
 // @Security     BearerAuth
 func (e *rest) CreateAttendancePeriod(c *gin.Context) {

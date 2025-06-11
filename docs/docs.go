@@ -15,9 +15,9 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/spot/available": {
-            "get": {
-                "description": "Returns a list of available spots for a specific vehicle type",
+        "/api/attendance/checkin": {
+            "post": {
+                "description": "Records employee check-in attendance",
                 "consumes": [
                     "application/json"
                 ],
@@ -27,12 +27,174 @@ const docTemplate = `{
                 "tags": [
                     "Attendance"
                 ],
-                "summary": "Get available attendance spots",
+                "summary": "Employee check-in",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.CheckInResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/attendance/checkout": {
+            "post": {
+                "description": "Records employee check-out attendance",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Attendance"
+                ],
+                "summary": "Employee check-out",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.CheckOutResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/attendance/overtime": {
+            "post": {
+                "description": "Allows an employee to submit an overtime record",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Overtime"
+                ],
+                "summary": "Submit overtime request",
+                "parameters": [
+                    {
+                        "description": "Overtime Info",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.OvertimeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payroll/create": {
+            "post": {
+                "description": "This endpoint processes payroll based on attendance, overtime, and reimbursement records.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payroll"
+                ],
+                "summary": "Create payroll for an attendance period",
+                "parameters": [
+                    {
+                        "description": "Period ID Payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreatePayrollRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Payroll already exists",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payroll/summary": {
+            "get": {
+                "description": "Retrieve payroll summary for multiple attendance periods, grouped by user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payroll"
+                ],
+                "summary": "Get payroll summary",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Vehicle Type (M, B, A)",
-                        "name": "vehicle_type",
+                        "description": "Comma-separated Attendance Period IDs (e.g., 1,2,3)",
+                        "name": "period_ids",
                         "in": "query",
                         "required": true
                     }
@@ -41,7 +203,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.AvailableSpotResponse"
+                            "$ref": "#/definitions/handler.GetPayrollSummaryResponse"
                         }
                     },
                     "400": {
@@ -49,43 +211,15 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handler.ErrorResponse"
                         }
-                    }
-                }
-            }
-        },
-        "/vehicle/park": {
-            "post": {
-                "description": "Parks a vehicle into an available spot",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Attendance"
-                ],
-                "summary": "Park a vehicle",
-                "parameters": [
-                    {
-                        "description": "Vehicle Info",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handler.ParkRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.ParkResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     },
-                    "400": {
-                        "description": "Bad Request",
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handler.ErrorResponse"
                         }
@@ -93,9 +227,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/vehicle/search": {
+        "/api/payslip": {
             "get": {
-                "description": "Returns information about a vehicle parked in the lot",
+                "description": "Retrieve the payslip for the currently logged-in user for a specific attendance period",
                 "consumes": [
                     "application/json"
                 ],
@@ -103,27 +237,51 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Attendance"
+                    "Payroll"
                 ],
-                "summary": "Search a parked vehicle",
+                "summary": "Get user's payslip",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "Vehicle Number",
-                        "name": "vehicle_number",
+                        "type": "integer",
+                        "description": "Attendance Period ID",
+                        "name": "period_id",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.SearchVehicleResponse"
+                            "$ref": "#/definitions/handler.PayslipListResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handler.ErrorResponse"
                         }
@@ -131,9 +289,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/vehicle/unpark": {
+        "/api/reimbursement": {
             "post": {
-                "description": "Removes a vehicle from the attendance lot",
+                "description": "Allows a user to submit a reimbursement claim",
                 "consumes": [
                     "application/json"
                 ],
@@ -141,17 +299,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Attendance"
+                    "Reimbursement"
                 ],
-                "summary": "Unpark a vehicle",
+                "summary": "Submit a reimbursement request",
                 "parameters": [
                     {
-                        "description": "Unpark Info",
+                        "description": "Reimbursement Info",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.UnparkRequest"
+                            "$ref": "#/definitions/handler.ReimbursementRequest"
                         }
                     }
                 ],
@@ -159,13 +317,186 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.UnparkResponse"
+                            "$ref": "#/definitions/handler.GenericResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attendance-periods": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new attendance period with start and end date",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attendance"
+                ],
+                "summary": "Create a new attendance period",
+                "parameters": [
+                    {
+                        "description": "Attendance Period Data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateAttendancePeriodRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "description": "Authenticate user and return access token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Login user and get JWT token",
+                "parameters": [
+                    {
+                        "description": "Login payload",
+                        "name": "loginRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.AuthResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/register": {
+            "post": {
+                "description": "Create a new user account with email and password",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Register a new user",
+                "parameters": [
+                    {
+                        "description": "Register payload",
+                        "name": "registerRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "User registered successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -173,47 +504,76 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "entity.Vehicle": {
+        "entity.PayrollSummaryItem": {
             "type": "object",
             "properties": {
-                "id": {
+                "total_pay": {
+                    "type": "number"
+                },
+                "user_id": {
                     "type": "integer"
                 },
-                "parked_at": {
-                    "type": "string"
-                },
-                "spot_id": {
-                    "type": "string"
-                },
-                "unparked_at": {
-                    "type": "string"
-                },
-                "vehicle_number": {
-                    "type": "string"
-                },
-                "vehicle_type": {
-                    "description": "'B', 'M', 'A'",
+                "username": {
                     "type": "string"
                 }
             }
         },
-        "handler.AvailableSpotResponse": {
+        "handler.AuthResponse": {
             "type": "object",
             "properties": {
-                "available_spots": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handler.AttendanceSpotBrief"
-                    }
-                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.CheckInResponse": {
+            "type": "object",
+            "properties": {
                 "message": {
                     "type": "string"
                 },
                 "success": {
                     "type": "boolean"
-                },
-                "vehicle_type": {
+                }
+            }
+        },
+        "handler.CheckOutResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
                     "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.CreateAttendancePeriodRequest": {
+            "type": "object",
+            "required": [
+                "end_date",
+                "start_date"
+            ],
+            "properties": {
+                "end_date": {
+                    "type": "string",
+                    "example": "2025-06-15T23:59:59Z"
+                },
+                "start_date": {
+                    "type": "string",
+                    "example": "2025-06-01T00:00:00Z"
+                }
+            }
+        },
+        "handler.CreatePayrollRequest": {
+            "type": "object",
+            "required": [
+                "period_id"
+            ],
+            "properties": {
+                "period_id": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
@@ -231,93 +591,161 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.ParkRequest": {
+        "handler.GenericResponse": {
             "type": "object",
-            "required": [
-                "vehicle_number",
-                "vehicle_type"
-            ],
             "properties": {
-                "vehicle_number": {
+                "message": {
                     "type": "string"
                 },
-                "vehicle_type": {
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.GetPayrollSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.PayrollSummaryItem"
+                    }
+                },
+                "grand_total": {
+                    "type": "number"
+                }
+            }
+        },
+        "handler.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.OvertimeRequest": {
+            "type": "object",
+            "required": [
+                "date",
+                "hours"
+            ],
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "hours": {
+                    "type": "number",
+                    "maximum": 3
+                }
+            }
+        },
+        "handler.PayslipDataResp": {
+            "type": "object",
+            "properties": {
+                "attendance_amount": {
+                    "type": "string"
+                },
+                "attendance_period_id": {
+                    "type": "integer"
+                },
+                "attended_days": {
+                    "type": "integer"
+                },
+                "base_salary": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "overtime_hours": {
+                    "type": "number"
+                },
+                "overtime_pay": {
+                    "type": "string"
+                },
+                "reimbursement_total": {
+                    "type": "string"
+                },
+                "total_pay": {
+                    "type": "string"
+                },
+                "working_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.PayslipListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.PayslipDataResp"
+                    }
+                },
+                "total_data": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "fullname",
+                "password",
+                "salary",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "fullname": {
+                    "type": "string"
+                },
+                "password": {
                     "type": "string",
-                    "enum": [
-                        "M",
-                        "B",
-                        "A"
-                    ]
-                }
-            }
-        },
-        "handler.ParkResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
+                    "minLength": 6
                 },
-                "spot_id": {
-                    "type": "string"
+                "salary": {
+                    "type": "number"
                 },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "handler.AttendanceSpotBrief": {
-            "type": "object",
-            "properties": {
-                "column": {
-                    "type": "integer"
-                },
-                "floor": {
-                    "type": "integer"
-                },
-                "row": {
-                    "type": "integer"
-                },
-                "spot_id": {
+                "username": {
                     "type": "string"
                 }
             }
         },
-        "handler.SearchVehicleResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                },
-                "vehicle": {
-                    "$ref": "#/definitions/entity.Vehicle"
-                }
-            }
-        },
-        "handler.UnparkRequest": {
+        "handler.ReimbursementRequest": {
             "type": "object",
             "required": [
-                "vehicle_number"
+                "amount",
+                "date",
+                "description"
             ],
             "properties": {
-                "spot_id": {
+                "amount": {
+                    "type": "number"
+                },
+                "date": {
                     "type": "string"
                 },
-                "vehicle_number": {
+                "description": {
                     "type": "string"
-                }
-            }
-        },
-        "handler.UnparkResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
                 }
             }
         }

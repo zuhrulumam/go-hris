@@ -42,7 +42,21 @@ services:
     depends_on:
       - postgres
       - redis
-    command: ["worker"]
+    command: ["start-worker"]
+
+  scheduler:
+    build: .
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=youruser
+      - DB_PASSWORD=yourpassword
+      - DB_NAME=yourdb
+      - DB_PORT=5432
+      - REDIS_HOST=redis:6379
+    depends_on:
+      - postgres
+      - redis
+    command: ["start-scheduler"]
 
   seed:
     build: .
@@ -58,21 +72,29 @@ services:
     restart: "no"
 
   redis:
-    image: redis:7
+    image: redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
 
-  asynqmon:
-    image: hibiken/asynqmon
-    platform: linux/amd64
+  # comment out asynqmon cannot run in arm
+  # asynqmon:
+  #   image: hibiken/asynqmon
+  #   platform: linux/amd64
+  #   environment:
+  #     - REDIS_ADDR=redis:6379
+  #   ports:
+  #     - "8081:8080"
+  #   depends_on:
+  #     - redis
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.asynqmon.rule=Host(`asynqmon.localhost`)"
+  #     - "traefik.http.services.asynqmon.loadbalancer.server.port=8080"
+  #     - "traefik.http.routers.asynqmon.entrypoints=web"
+
+  postgres:
+    image: postgres:15
     environment:
-      - REDIS_ADDR=redis:6379
-    ports:
-      - "8081:8080"
-    depends_on:
-      - redis
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.asynqmon.rule=Host(`asynqmon.localhost`)"
-      - "traefik.http.services.asynqmon.loadbalancer.server.port=8080"
-      - "traefik.http.routers.asynqmon.entrypoints=web"
+      - POSTGRES_USER=youruser
+      - POSTGRES_PASSWORD=yourpassword
+      - POSTGRES_DB=yourdb

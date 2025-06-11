@@ -1,12 +1,13 @@
 package pkg
 
 import (
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("your-secret-key") // Replace with env var in production
+var jwtSecret = []byte(os.Getenv("JWT_SECRET")) // Replace with env var in production
 
 type CustomClaims struct {
 	UserID   uint   `json:"user_id"`

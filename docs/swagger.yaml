@@ -1,32 +1,51 @@
 definitions:
-  entity.Vehicle:
+  entity.PayrollSummaryItem:
     properties:
-      id:
+      total_pay:
+        type: number
+      user_id:
         type: integer
-      parked_at:
-        type: string
-      spot_id:
-        type: string
-      unparked_at:
-        type: string
-      vehicle_number:
-        type: string
-      vehicle_type:
-        description: "'B', 'M', 'A'"
+      username:
         type: string
     type: object
-  handler.AvailableSpotResponse:
+  handler.AuthResponse:
     properties:
-      available_spots:
-        items:
-          $ref: "#/definitions/handler.AttendanceSpotBrief"
-        type: array
+      token:
+        type: string
+    type: object
+  handler.CheckInResponse:
+    properties:
       message:
         type: string
       success:
         type: boolean
-      vehicle_type:
+    type: object
+  handler.CheckOutResponse:
+    properties:
+      message:
         type: string
+      success:
+        type: boolean
+    type: object
+  handler.CreateAttendancePeriodRequest:
+    properties:
+      end_date:
+        example: "2025-06-15T23:59:59Z"
+        type: string
+      start_date:
+        example: "2025-06-01T00:00:00Z"
+        type: string
+    required:
+    - end_date
+    - start_date
+    type: object
+  handler.CreatePayrollRequest:
+    properties:
+      period_id:
+        example: 1
+        type: integer
+    required:
+    - period_id
     type: object
   handler.ErrorResponse:
     properties:
@@ -37,168 +56,434 @@ definitions:
       success:
         type: boolean
     type: object
-  handler.ParkRequest:
+  handler.GenericResponse:
     properties:
-      vehicle_number:
+      message:
         type: string
-      vehicle_type:
-        enum:
-          - M
-          - B
-          - A
+      success:
+        type: boolean
+    type: object
+  handler.GetPayrollSummaryResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/entity.PayrollSummaryItem'
+        type: array
+      grand_total:
+        type: number
+    type: object
+  handler.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
         type: string
     required:
-      - vehicle_number
-      - vehicle_type
+    - password
+    - username
     type: object
-  handler.ParkResponse:
+  handler.OvertimeRequest:
     properties:
-      message:
+      date:
         type: string
-      spot_id:
+      description:
         type: string
-      success:
-        type: boolean
+      hours:
+        maximum: 3
+        type: number
+    required:
+    - date
+    - hours
     type: object
-  handler.AttendanceSpotBrief:
+  handler.PayslipDataResp:
     properties:
-      column:
+      attendance_amount:
+        type: string
+      attendance_period_id:
         type: integer
-      floor:
+      attended_days:
         type: integer
-      row:
+      base_salary:
+        type: string
+      created_at:
+        type: string
+      overtime_hours:
+        type: number
+      overtime_pay:
+        type: string
+      reimbursement_total:
+        type: string
+      total_pay:
+        type: string
+      working_days:
         type: integer
-      spot_id:
-        type: string
     type: object
-  handler.SearchVehicleResponse:
+  handler.PayslipListResponse:
     properties:
-      message:
-        type: string
-      success:
-        type: boolean
-      vehicle:
-        $ref: "#/definitions/entity.Vehicle"
+      data:
+        items:
+          $ref: '#/definitions/handler.PayslipDataResp'
+        type: array
+      total_data:
+        type: integer
+      total_pages:
+        type: integer
     type: object
-  handler.UnparkRequest:
+  handler.RegisterRequest:
     properties:
-      spot_id:
+      email:
         type: string
-      vehicle_number:
+      fullname:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      salary:
+        type: number
+      username:
         type: string
     required:
-      - vehicle_number
+    - email
+    - fullname
+    - password
+    - salary
+    - username
     type: object
-  handler.UnparkResponse:
+  handler.ReimbursementRequest:
     properties:
-      message:
+      amount:
+        type: number
+      date:
         type: string
-      success:
-        type: boolean
+      description:
+        type: string
+    required:
+    - amount
+    - date
+    - description
     type: object
 info:
   contact: {}
 paths:
-  /spot/available:
-    get:
-      consumes:
-        - application/json
-      description: Returns a list of available spots for a specific vehicle type
-      parameters:
-        - description: Vehicle Type (M, B, A)
-          in: query
-          name: vehicle_type
-          required: true
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: "#/definitions/handler.AvailableSpotResponse"
-        "400":
-          description: Bad Request
-          schema:
-            $ref: "#/definitions/handler.ErrorResponse"
-      summary: Get available attendance spots
-      tags:
-        - Attendance
-  /vehicle/park:
+  /api/attendance/checkin:
     post:
       consumes:
-        - application/json
-      description: Parks a vehicle into an available spot
-      parameters:
-        - description: Vehicle Info
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/handler.ParkRequest"
+      - application/json
+      description: Records employee check-in attendance
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/handler.ParkResponse"
+            $ref: '#/definitions/handler.CheckInResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: "#/definitions/handler.ErrorResponse"
-      summary: Park a vehicle
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Employee check-in
       tags:
-        - Attendance
-  /vehicle/search:
-    get:
-      consumes:
-        - application/json
-      description: Returns information about a vehicle parked in the lot
-      parameters:
-        - description: Vehicle Number
-          in: query
-          name: vehicle_number
-          required: true
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: "#/definitions/handler.SearchVehicleResponse"
-        "400":
-          description: Bad Request
-          schema:
-            $ref: "#/definitions/handler.ErrorResponse"
-      summary: Search a parked vehicle
-      tags:
-        - Attendance
-  /vehicle/unpark:
+      - Attendance
+  /api/attendance/checkout:
     post:
       consumes:
-        - application/json
-      description: Removes a vehicle from the attendance lot
-      parameters:
-        - description: Unpark Info
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/handler.UnparkRequest"
+      - application/json
+      description: Records employee check-out attendance
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: "#/definitions/handler.UnparkResponse"
+            $ref: '#/definitions/handler.CheckOutResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: "#/definitions/handler.ErrorResponse"
-      summary: Unpark a vehicle
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Employee check-out
       tags:
-        - Attendance
+      - Attendance
+  /api/attendance/overtime:
+    post:
+      consumes:
+      - application/json
+      description: Allows an employee to submit an overtime record
+      parameters:
+      - description: Overtime Info
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.OvertimeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Submit overtime request
+      tags:
+      - Overtime
+  /api/payroll/create:
+    post:
+      consumes:
+      - application/json
+      description: This endpoint processes payroll based on attendance, overtime,
+        and reimbursement records.
+      parameters:
+      - description: Period ID Payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreatePayrollRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Payroll already exists
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create payroll for an attendance period
+      tags:
+      - Payroll
+  /api/payroll/summary:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve payroll summary for multiple attendance periods, grouped
+        by user
+      parameters:
+      - description: Comma-separated Attendance Period IDs (e.g., 1,2,3)
+        in: query
+        name: period_ids
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GetPayrollSummaryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Get payroll summary
+      tags:
+      - Payroll
+  /api/payslip:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the payslip for the currently logged-in user for a specific
+        attendance period
+      parameters:
+      - description: Attendance Period ID
+        in: query
+        name: period_id
+        required: true
+        type: integer
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.PayslipListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Get user's payslip
+      tags:
+      - Payroll
+  /api/reimbursement:
+    post:
+      consumes:
+      - application/json
+      description: Allows a user to submit a reimbursement claim
+      parameters:
+      - description: Reimbursement Info
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ReimbursementRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Submit a reimbursement request
+      tags:
+      - Reimbursement
+  /attendance-periods:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new attendance period with start and end date
+      parameters:
+      - description: Attendance Period Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateAttendancePeriodRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new attendance period
+      tags:
+      - attendance
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return access token
+      parameters:
+      - description: Login payload
+        in: body
+        name: loginRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.AuthResponse'
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login user and get JWT token
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account with email and password
+      parameters:
+      - description: Register payload
+        in: body
+        name: registerRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - Auth
 swagger: "2.0"
