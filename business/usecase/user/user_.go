@@ -5,6 +5,7 @@ import (
 
 	"github.com/zuhrulumam/go-hris/business/entity"
 	"github.com/zuhrulumam/go-hris/pkg"
+	"github.com/zuhrulumam/go-hris/pkg/tracer"
 )
 
 func (p *user) Register(ctx context.Context, input entity.RegisterRequest) error {
@@ -13,6 +14,8 @@ func (p *user) Register(ctx context.Context, input entity.RegisterRequest) error
 }
 
 func (p *user) Login(ctx context.Context, input entity.LoginRequest) (string, error) {
+	ctx, done := tracer.Start(ctx, "useruc.login")
+	defer done()
 
 	var (
 		isAdmin bool

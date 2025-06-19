@@ -11,6 +11,7 @@ import (
 
 	"github.com/zuhrulumam/go-hris/business/entity"
 	x "github.com/zuhrulumam/go-hris/pkg/errors"
+	"github.com/zuhrulumam/go-hris/pkg/tracer"
 )
 
 func (u *user) Register(ctx context.Context, req entity.RegisterRequest) error {
@@ -50,6 +51,9 @@ func (u *user) Register(ctx context.Context, req entity.RegisterRequest) error {
 }
 
 func (u *user) Login(ctx context.Context, req entity.LoginRequest) (*entity.User, error) {
+	ctx, done := tracer.Start(ctx, "userdom.login")
+	defer done()
+
 	db := pkg.GetTransactionFromCtx(ctx, u.db)
 
 	var user entity.User

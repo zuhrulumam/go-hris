@@ -6,6 +6,18 @@ import (
 
 type CtxVal string
 
+const (
+	HeaderAuthorization         = "Authorization"
+	HeaderContentType           = "Content-Type"
+	HeaderContentLength         = "Content-Length"
+	HeaderXForwardedFor         = "X-Forwarded-For"
+	HeaderXForwardedHost        = "X-Forwarded-Host"
+	HeaderXClientID             = "X-Client-Id"
+	HeaderXClientVersion        = "X-Client-Version"
+	HeaderXRequestID            = "X-Request-Id"
+	HeaderContentTypeJSONPrefix = "application/json"
+)
+
 var (
 	TxCtxValue CtxVal = "tx"
 )

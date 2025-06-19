@@ -11,7 +11,10 @@ import (
 	"github.com/zuhrulumam/go-hris/business/usecase"
 	"github.com/zuhrulumam/go-hris/handler"
 	"github.com/zuhrulumam/go-hris/pkg/logger"
+	"github.com/zuhrulumam/go-hris/pkg/metrics"
 	"github.com/zuhrulumam/go-hris/pkg/middlewares"
+	"github.com/zuhrulumam/go-hris/pkg/tracer"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -34,10 +37,20 @@ var (
 
 func run() {
 
+	trace := tracer.InitTracer(tracer.Option{
+		JaegerHost: os.Getenv("JAEGER_HOST"),
+	})
+	defer trace()
+
 	lg = logger.NewZapLogger()
 
 	app := gin.Default()
 	app.Use(middlewares.RequestContextMiddleware(lg))
+	app.Use(otelgin.Middleware("go-hris"))
+	app.Use(middlewares.TracerLogger())
+
+	// init metrics
+	metrics.Init(app, []metrics.SkipHandler{}, "go-hris")
 
 	// init sql
 	g, err := connectDB()

@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -185,6 +187,14 @@ func connectDB() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Register OpenTelemetry plugin
+	if err := db.Use(otelgorm.NewPlugin(
+		otelgorm.WithTracerProvider(otel.GetTracerProvider()),
+	)); err != nil {
+		return nil, err
+	}
+
 	// Enable debug mode if not production
 	if os.Getenv("ENV") != "production" {
 		db = db.Debug()
